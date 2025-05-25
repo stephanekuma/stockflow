@@ -44,7 +44,11 @@ class SettingResource extends Resource
 
                         Forms\Components\TextInput::make("group")
                             ->label(__("Group"))
-                            ->datalist(Setting::pluck('group')->toArray()),
+                            ->datalist(Setting::query()
+                                ->distinct('group')
+                                ->pluck('group')
+                                ->toArray()
+                            ),
 
                         Forms\Components\Repeater::make("attributes.options")
                             ->label(__("default.Options"))
