@@ -107,4 +107,10 @@ class User extends Authenticatable implements FilamentUser, HasTenants
     {
         return $this->stores()->whereKey($tenant)->exists();
     }
+
+    public function isAdmin(): bool
+    {
+        return $this->email === 'admin@inventory.test'
+            || $this->email === 'test@inventory.test';
+    }
 }
