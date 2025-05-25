@@ -12,8 +12,13 @@ class StoreSeeder extends Seeder
      */
     public function run(): void
     {
+        $user = \App\Models\User::query()->first();
+
         \App\Models\Store::factory()
             ->count(2)
-            ->create();
+            ->create()
+            ->each(function ($store) use ($user) {
+                $store->users()->attach($user->id);
+            });
     }
 }
