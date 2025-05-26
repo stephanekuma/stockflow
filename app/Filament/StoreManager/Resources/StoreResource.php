@@ -21,6 +21,16 @@ class StoreResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-building-storefront';
 
+    public static function getModelLabel(): string
+    {
+        return __('Store');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('Stores');
+    }
+
     public static function form(Form $form): Form
     {
         return $form

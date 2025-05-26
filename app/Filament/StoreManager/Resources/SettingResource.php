@@ -19,6 +19,16 @@ class SettingResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-wrench-screwdriver';
 
+    public static function getModelLabel(): string
+    {
+        return __('Setting');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('Settings');
+    }
+
     public static function form(Form $form): Form
     {
         return $form

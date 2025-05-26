@@ -17,17 +17,14 @@ use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Collection;
 
 class SettingPage extends Page implements HasForms
 {
     use InteractsWithForms;
 
-    protected static ?string $title = 'Settings';
-
     protected static ?string $navigationIcon = 'heroicon-o-wrench-screwdriver';
-
-    protected static ?string $slug = 'settings';
 
     protected static string $view = 'filament.pages.setting-page';
 
@@ -41,6 +38,16 @@ class SettingPage extends Page implements HasForms
     public static function getNavigationLabel(): string
     {
         return __('Settings');
+    }
+
+    public static function getSlug(): string
+    {
+        return __('settings');
+    }
+
+    public function getTitle(): string | Htmlable
+    {
+        return __('Store Settings');
     }
 
     public function mount(): void
