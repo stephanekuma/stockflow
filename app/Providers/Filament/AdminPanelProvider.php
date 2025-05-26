@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\ProfilePage;
 use App\Models\Store;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -18,6 +19,7 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Jeffgreco13\FilamentBreezy\BreezyCore;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -55,6 +57,20 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ])
-            ->tenant(Store::class);
+            ->tenant(Store::class)
+            ->plugins([
+                BreezyCore::make()
+                    ->myProfile(
+                        shouldRegisterUserMenu: true,
+                        shouldRegisterNavigation: true,
+                        navigationGroup: __('Settings'),
+                    )
+                    ->enableTwoFactorAuthentication(
+                        force: true,
+                    )
+                    ->customMyProfilePage(ProfilePage::class),
+            ])
+            ->sidebarCollapsibleOnDesktop()
+            ->collapsedSidebarWidth('9rem');
     }
 }

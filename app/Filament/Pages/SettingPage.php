@@ -27,9 +27,16 @@ class SettingPage extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-wrench-screwdriver';
 
+    protected static ?string $slug = 'settings';
+
     protected static string $view = 'filament.pages.setting-page';
 
     public ?array $data = [];
+
+    public static function getNavigationGroup(): ?string
+    {
+        return __('Settings');
+    }
 
     public static function getNavigationLabel(): string
     {
