@@ -8,6 +8,7 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationGroup;
 use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -58,6 +59,14 @@ class AdminPanelProvider extends PanelProvider
                 Authenticate::class,
             ])
             ->tenant(Store::class)
+            ->navigationGroups([
+                NavigationGroup::make()
+                    ->label(__('Business Entities'))
+                    ->icon('heroicon-s-briefcase'),
+                NavigationGroup::make()
+                    ->label(__('Settings'))
+                    ->icon('heroicon-s-cog'),
+            ])
             ->plugins([
                 BreezyCore::make()
                     ->myProfile(

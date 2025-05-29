@@ -19,6 +19,11 @@ class CustomerResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
 
+    public static function getNavigationGroup(): ?string
+    {
+        return __('Business Entities');
+    }
+
     public static function getModelLabel(): string
     {
         return __('Customer');
