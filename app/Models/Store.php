@@ -64,4 +64,14 @@ class Store extends Model
     {
         return $this->hasMany(Customer::class);
     }
+
+    /**
+     * Get all of the providers for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function providers(): HasMany
+    {
+        return $this->hasMany(Provider::class);
+    }
 }
