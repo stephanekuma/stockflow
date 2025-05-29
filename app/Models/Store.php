@@ -54,4 +54,14 @@ class Store extends Model
     {
         return $this->hasMany(StoreSetting::class, 'store_id', 'id');
     }
+
+    /**
+     * Get all of the customers for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function customers(): HasMany
+    {
+        return $this->hasMany(Customer::class);
+    }
 }
