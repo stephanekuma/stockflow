@@ -19,7 +19,7 @@ class UnitResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 4;
 
     public static function getNavigationGroup(): string
     {
@@ -66,10 +66,12 @@ class UnitResource extends Resource
                 //     ->sortable(),
                 Tables\Columns\TextColumn::make('name')
                     ->label(__('Name'))
+                    ->helperText(__('Kilograms, Gallons, Liters, etc'))
                     ->sortable()
                     ->searchable(),
                 Tables\Columns\TextColumn::make('key')
-                    ->label(__('Key'))
+                    ->label(__('Short Unit'))
+                    ->helperText(__('Units in short form kg, gal, l, etc'))
                     ->sortable()
                     ->searchable(),
                 Tables\Columns\TextColumn::make('created_at')
