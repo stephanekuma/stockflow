@@ -74,4 +74,44 @@ class Store extends Model
     {
         return $this->hasMany(Provider::class);
     }
+
+    /**
+     * Get all of the brands for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function brands(): HasMany
+    {
+        return $this->hasMany(Brand::class);
+    }
+
+    /**
+     * Get all of the categories for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function categories(): HasMany
+    {
+        return $this->hasMany(Category::class);
+    }
+
+    /**
+     * Get all of the products for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function products(): HasMany
+    {
+        return $this->hasMany(Product::class);
+    }
+
+    /**
+     * Get all of the units for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function units(): HasMany
+    {
+        return $this->hasMany(Unit::class);
+    }
 }
