@@ -60,9 +60,12 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->tenant(Store::class)
             ->navigationGroups([
-                NavigationGroup::make()
-                    ->label(__('Business Entities'))
-                    ->icon('heroicon-s-briefcase'),
+            NavigationGroup::make()
+                ->label(__('Products Management'))
+                ->icon('heroicon-s-cube'),
+            NavigationGroup::make()
+                ->label(__('Business Entities'))
+                ->icon('heroicon-s-briefcase'),
                 NavigationGroup::make()
                     ->label(__('Settings'))
                     ->icon('heroicon-s-cog'),
