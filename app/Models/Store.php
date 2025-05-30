@@ -114,4 +114,34 @@ class Store extends Model
     {
         return $this->hasMany(Unit::class);
     }
+
+    /**
+     * Get all of the product units for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function productUnits(): HasMany
+    {
+        return $this->hasMany(ProductUnit::class);
+    }
+
+    /**
+     * Get all of the productPriceHistories for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function productPriceHistories(): HasMany
+    {
+        return $this->hasMany(ProductPriceHistory::class);
+    }
+
+    /**
+     * Get all of the packs for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function packs(): HasMany
+    {
+        return $this->hasMany(Pack::class);
+    }
 }

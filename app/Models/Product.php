@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
@@ -37,6 +38,16 @@ class Product extends Model
     ];
 
     /**
+     * Get the store that owns the product.
+     *
+     * @return BelongsTo
+     */
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
+    }
+
+    /**
      * Get the category that owns the product.
      *
      * @return BelongsTo
@@ -57,12 +68,12 @@ class Product extends Model
     }
 
     /**
-     * Get the store that owns the product.
+     * Get all of the product units for the Product
      *
-     * @return BelongsTo
+     * @return HasMany
      */
-    public function store(): BelongsTo
+    public function units(): HasMany
     {
-        return $this->belongsTo(Store::class);
+        return $this->hasMany(ProductUnit::class);
     }
 }
