@@ -5,6 +5,8 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ProductResource\Pages;
 use App\Filament\Resources\ProductResource\RelationManagers;
 use App\Models\Product;
+use App\Models\Unit;
+use Filament\Facades\Filament;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -41,6 +43,8 @@ class ProductResource extends Resource
         return $form
             ->schema([
                 Forms\Components\Section::make()
+                    ->heading(__('Product Information'))
+                    ->collapsible()
                     ->schema([
                         // Forms\Components\Select::make('store_id')
                         //     ->relationship('store', 'name')
@@ -51,14 +55,30 @@ class ProductResource extends Resource
                             ->preload()
                             ->searchable()
                             ->relationship('category', 'name')
-                            ->required(),
+                            ->required()
+                            ->createOptionForm(fn() => array_merge(
+                                CategoryResource::getFormSchema(),
+                                [
+                                    Forms\Components\Hidden::make('store_id')
+                                        ->default(Filament::getTenant()->id),
+                                ]
+                            ))
+                            ->createOptionModalHeading(__('Create New Category')),
                         Forms\Components\Select::make('brand_id')
                             ->label(__('Brand'))
                             ->native(false)
                             ->preload()
                             ->searchable()
                             ->relationship('brand', 'name')
-                            ->required(),
+                            ->required()
+                            ->createOptionForm(fn() => array_merge(
+                                BrandResource::getFormSchema(),
+                                [
+                                    Forms\Components\Hidden::make('store_id')
+                                        ->default(Filament::getTenant()->id),
+                                ]
+                            ))
+                            ->createOptionModalHeading(__('Create New Brand')),
                         Forms\Components\TextInput::make('name')
                             ->label(__('Name'))
                             ->required()
@@ -68,7 +88,7 @@ class ProductResource extends Resource
                             ->unique(ignoreRecord: true)
                             ->label('SKU')
                             ->maxLength(255),
-                        Forms\Components\TextInput::make('description')
+                        Forms\Components\Textarea::make('description')
                             ->label(__('Description'))
                             ->maxLength(255),
                         Forms\Components\FileUpload::make('image')
@@ -77,6 +97,64 @@ class ProductResource extends Resource
                             ->label(__('Extra Details'))
                             ->columnSpanFull(),
                     ])->columns(2),
+
+                Forms\Components\Section::make()
+                    ->heading(__('Pricing Information'))
+                    ->collapsible()
+                    ->schema([
+                        Forms\Components\Repeater::make('units')
+                            ->relationship('units')
+                            ->schema([
+                                Forms\Components\Hidden::make('store_id')
+                                    ->default(Filament::getTenant()->id),
+                                Forms\Components\Select::make('unit_id')
+                                    ->label(__('Unit'))
+                                    ->native(false)
+                                    ->preload()
+                                    ->searchable()
+                                    ->options(fn() => Unit::query()->pluck('name', 'id')->toArray())
+                                    ->required()
+                                    ->createOptionForm(fn() => array_merge(
+                                        UnitResource::getFormSchema(),
+                                        [
+                                            Forms\Components\Hidden::make('store_id')
+                                                ->default(Filament::getTenant()->id),
+                                        ]
+                                    ))
+                                    ->createOptionModalHeading(__('Create New Unit')),
+                                Forms\Components\TextInput::make('quantity')
+                                    ->label(__('Quantity'))
+                                    ->numeric()
+                                    ->required(),
+                                Forms\Components\TextInput::make('cost_price')
+                                    ->label(__('Cost Price'))
+                                    ->numeric()
+                                    ->required(),
+                                Forms\Components\TextInput::make('price')
+                                    ->label(__('Price'))
+                                    ->numeric()
+                                    ->required(),
+                                // Forms\Components\TextInput::make('discount')
+                                //     ->label(__('Discount'))
+                                //     ->numeric(),
+                                // Forms\Components\TextInput::make('vat')
+                                //     ->label(__('VAT'))
+                                //     ->numeric(),
+                                // Forms\Components\TextInput::make('total')
+                                //     ->label(__('Total'))
+                                //     ->numeric(),
+                                // Forms\Components\KeyValue::make('data')
+                                //     ->label(__('Extra Details'))
+                                //     ->columnSpanFull(),
+                            ])
+                            ->reorderableWithButtons()
+                            ->defaultItems(1)
+                            ->cloneable()
+                            ->collapsible()
+                            ->orderColumn('unit_id')
+                            ->columns(2)
+                        // ->grid(2),
+                    ]),
             ]);
     }
 
@@ -84,28 +162,37 @@ class ProductResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('store.name')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('category.name')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('brand.name')
-                    ->numeric()
-                    ->sortable(),
+                // Tables\Columns\TextColumn::make('store.name')
+                //     ->numeric()
+                //     ->sortable(),
                 Tables\Columns\TextColumn::make('name')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('sku')
-                    ->label('SKU')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('description')
+                    ->label(__('Name'))
+                    ->sortable()
                     ->searchable(),
                 Tables\Columns\ImageColumn::make('image'),
+                Tables\Columns\TextColumn::make('category.name')
+                    ->label(__('Category'))
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('brand.name')
+                    ->label(__('Brand'))
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('sku')
+                    ->label('SKU')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('description')
+                    ->label(__('Description'))
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('created_at')
+                    ->label(__('Created At'))
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('updated_at')
+                    ->label(__('Updated At'))
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -115,6 +202,7 @@ class ProductResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

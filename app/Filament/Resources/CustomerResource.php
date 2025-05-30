@@ -37,29 +37,9 @@ class CustomerResource extends Resource
     public static function form(Form $form): Form
     {
         return $form
-            ->schema([
-                // Forms\Components\Select::make('store_id')
-                //     ->relationship('store', 'name')
-                //     ->required(),
-                Forms\Components\TextInput::make('name')
-                    ->label(__('Name'))
-                    ->required()
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('email')
-                    ->label(__('Email'))
-                    ->email()
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('phone')
-                    ->label(__('Phone'))
-                    ->tel()
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('address')
-                    ->label(__('Address'))
-                    ->maxLength(255),
-                Forms\Components\KeyValue::make('data')
-                    ->label(__('Extra Details'))
-                    ->columnSpanFull(),
-            ]);
+            ->schema(
+                self::getFormSchema(),
+            );
     }
 
     public static function table(Table $table): Table
@@ -121,6 +101,33 @@ class CustomerResource extends Resource
             'index' => Pages\ListCustomers::route('/'),
             // 'create' => Pages\CreateCustomer::route('/create'),
             // 'edit' => Pages\EditCustomer::route('/{record}/edit'),
+        ];
+    }
+
+    public static function getFormSchema(): array
+    {
+        return [
+            // Forms\Components\Select::make('store_id')
+            //     ->relationship('store', 'name')
+            //     ->required(),
+            Forms\Components\TextInput::make('name')
+                ->label(__('Name'))
+                ->required()
+                ->maxLength(255),
+            Forms\Components\TextInput::make('email')
+                ->label(__('Email'))
+                ->email()
+                ->maxLength(255),
+            Forms\Components\TextInput::make('phone')
+                ->label(__('Phone'))
+                ->tel()
+                ->maxLength(255),
+            Forms\Components\TextInput::make('address')
+                ->label(__('Address'))
+                ->maxLength(255),
+            Forms\Components\KeyValue::make('data')
+                ->label(__('Extra Details'))
+                ->columnSpanFull(),
         ];
     }
 }

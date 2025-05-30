@@ -38,21 +38,9 @@ class CategoryResource extends Resource
     public static function form(Form $form): Form
     {
         return $form
-            ->schema([
-                // Forms\Components\Select::make('store_id')
-                //     ->relationship('store', 'name')
-                //     ->required(),
-                Forms\Components\TextInput::make('name')
-                    ->label(__('Name'))
-                    ->required()
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('description')
-                    ->label(__('Description'))
-                    ->maxLength(255),
-                Forms\Components\KeyValue::make('data')
-                    ->label(__('Extra Details'))
-                    ->columnSpanFull(),
-            ]);
+            ->schema(
+                self::getFormSchema(),
+            );
     }
 
     public static function table(Table $table): Table
@@ -107,6 +95,25 @@ class CategoryResource extends Resource
             'index' => Pages\ListCategories::route('/'),
             // 'create' => Pages\CreateCategory::route('/create'),
             // 'edit' => Pages\EditCategory::route('/{record}/edit'),
+        ];
+    }
+
+    public static function getFormSchema(): array
+    {
+        return [
+            // Forms\Components\Select::make('store_id')
+            //     ->relationship('store', 'name')
+            //     ->required(),
+            Forms\Components\TextInput::make('name')
+                ->label(__('Name'))
+                ->required()
+                ->maxLength(255),
+            Forms\Components\TextInput::make('description')
+                ->label(__('Description'))
+                ->maxLength(255),
+            Forms\Components\KeyValue::make('data')
+                ->label(__('Extra Details'))
+                ->columnSpanFull(),
         ];
     }
 }
