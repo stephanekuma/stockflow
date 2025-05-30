@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\CategoryResource\Pages;
-use App\Filament\Resources\CategoryResource\RelationManagers;
-use App\Models\Category;
+use App\Filament\Resources\UnitResource\Pages;
+use App\Filament\Resources\UnitResource\RelationManagers;
+use App\Models\Unit;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -13,26 +13,27 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
-class CategoryResource extends Resource
+class UnitResource extends Resource
 {
-    protected static ?string $model = Category::class;
+    protected static ?string $model = Unit::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
-    protected static ?int $navigationSort = 2;
 
-    public static function getNavigationGroup(): ?string
+    protected static ?int $navigationSort = 3;
+
+    public static function getNavigationGroup(): string
     {
         return __('Products Management');
     }
 
     public static function getModelLabel(): string
     {
-        return __('Category');
+        return __('Unit');
     }
 
     public static function getPluralModelLabel(): string
     {
-        return __('Categories');
+        return __('Units');
     }
 
     public static function form(Form $form): Form
@@ -46,8 +47,9 @@ class CategoryResource extends Resource
                     ->label(__('Name'))
                     ->required()
                     ->maxLength(255),
-                Forms\Components\TextInput::make('description')
-                    ->label(__('Description'))
+                Forms\Components\TextInput::make('key')
+                    ->label(__('Key'))
+                    ->required()
                     ->maxLength(255),
                 Forms\Components\KeyValue::make('data')
                     ->label(__('Extra Details'))
@@ -66,10 +68,10 @@ class CategoryResource extends Resource
                     ->label(__('Name'))
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('description')
-                    ->label(__('Description'))
-                    ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('key')
+                    ->label(__('Key'))
+                    ->sortable()
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('Created At'))
                     ->dateTime()
@@ -104,9 +106,9 @@ class CategoryResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListCategories::route('/'),
-            // 'create' => Pages\CreateCategory::route('/create'),
-            // 'edit' => Pages\EditCategory::route('/{record}/edit'),
+            'index' => Pages\ListUnits::route('/'),
+            // 'create' => Pages\CreateUnit::route('/create'),
+            // 'edit' => Pages\EditUnit::route('/{record}/edit'),
         ];
     }
 }
