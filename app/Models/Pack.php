@@ -2,9 +2,10 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Pack extends Model
@@ -62,5 +63,15 @@ class Pack extends Model
     public function productUnits(): BelongsToMany
     {
         return $this->belongsToMany(ProductUnit::class);
+    }
+
+    /**
+     * Get all of the packProducts for the Pack
+     *
+     * @return HasMany
+     */
+    public function packProducts(): HasMany
+    {
+        return $this->hasMany(PackProduct::class);
     }
 }

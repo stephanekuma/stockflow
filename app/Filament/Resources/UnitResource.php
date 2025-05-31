@@ -19,7 +19,7 @@ class UnitResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 5;
 
     public static function getNavigationGroup(): string
     {
@@ -53,12 +53,10 @@ class UnitResource extends Resource
                 //     ->sortable(),
                 Tables\Columns\TextColumn::make('name')
                     ->label(__('Name'))
-                    ->helperText(__('Kilograms, Gallons, Liters, etc'))
                     ->sortable()
                     ->searchable(),
                 Tables\Columns\TextColumn::make('key')
                     ->label(__('Short Unit'))
-                    ->helperText(__('Units in short form kg, gal, l, etc'))
                     ->sortable()
                     ->searchable(),
                 Tables\Columns\TextColumn::make('created_at')
@@ -77,6 +75,7 @@ class UnitResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -110,11 +109,13 @@ class UnitResource extends Resource
             Forms\Components\TextInput::make('name')
                 ->label(__('Name'))
                 ->required()
-                ->maxLength(255),
+                ->maxLength(255)
+                ->helperText(__('Kilograms, Gallons, Liters, etc')),
             Forms\Components\TextInput::make('key')
                 ->label(__('Key'))
                 ->required()
-                ->maxLength(255),
+                ->maxLength(255)
+                ->helperText(__('Units in short form kg, gal, l, etc')),
             Forms\Components\KeyValue::make('data')
                 ->label(__('Extra Details'))
                 ->columnSpanFull(),

@@ -144,4 +144,14 @@ class Store extends Model
     {
         return $this->hasMany(Pack::class);
     }
+
+    /**
+     * Get all of the packProducts for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function packProducts(): HasMany
+    {
+        return $this->hasMany(PackProduct::class);
+    }
 }
