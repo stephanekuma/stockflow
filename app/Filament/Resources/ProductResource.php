@@ -14,6 +14,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use App\Filament\Resources\ProductResource\RelationManagers\ProductUnitsRelationManager;
 
 class ProductResource extends Resource
 {
@@ -41,121 +42,9 @@ class ProductResource extends Resource
     public static function form(Form $form): Form
     {
         return $form
-            ->schema([
-                Forms\Components\Section::make()
-                    ->heading(__('Product Information'))
-                    ->collapsible()
-                    ->schema([
-                        // Forms\Components\Select::make('store_id')
-                        //     ->relationship('store', 'name')
-                        //     ->required(),
-                        Forms\Components\Select::make('category_id')
-                            ->label(__('Category'))
-                            ->native(false)
-                            ->preload()
-                            ->searchable()
-                            ->relationship('category', 'name')
-                            ->required()
-                            ->createOptionForm(fn() => array_merge(
-                                CategoryResource::getFormSchema(),
-                                [
-                                    Forms\Components\Hidden::make('store_id')
-                                        ->default(Filament::getTenant()->id),
-                                ]
-                            ))
-                            ->createOptionModalHeading(__('Create New Category')),
-                        Forms\Components\Select::make('brand_id')
-                            ->label(__('Brand'))
-                            ->native(false)
-                            ->preload()
-                            ->searchable()
-                            ->relationship('brand', 'name')
-                            ->required()
-                            ->createOptionForm(fn() => array_merge(
-                                BrandResource::getFormSchema(),
-                                [
-                                    Forms\Components\Hidden::make('store_id')
-                                        ->default(Filament::getTenant()->id),
-                                ]
-                            ))
-                            ->createOptionModalHeading(__('Create New Brand')),
-                        Forms\Components\TextInput::make('name')
-                            ->label(__('Name'))
-                            ->required()
-                            ->maxLength(255),
-                        Forms\Components\TextInput::make('sku')
-                            ->nullable()
-                            ->unique(ignoreRecord: true)
-                            ->label('SKU')
-                            ->maxLength(255),
-                        Forms\Components\Textarea::make('description')
-                            ->label(__('Description'))
-                            ->maxLength(255),
-                        Forms\Components\FileUpload::make('image')
-                            ->image(),
-                        Forms\Components\KeyValue::make('data')
-                            ->label(__('Extra Details'))
-                            ->columnSpanFull(),
-                    ])->columns(2),
-
-                Forms\Components\Section::make()
-                    ->heading(__('Pricing Information'))
-                    ->collapsible()
-                    ->schema([
-                        Forms\Components\Repeater::make('units')
-                            ->relationship('units')
-                            ->schema([
-                                Forms\Components\Hidden::make('store_id')
-                                    ->default(Filament::getTenant()->id),
-                                Forms\Components\Select::make('unit_id')
-                                    ->label(__('Unit'))
-                                    ->native(false)
-                                    ->preload()
-                                    ->searchable()
-                                    ->options(fn() => Unit::query()->pluck('name', 'id')->toArray())
-                                    ->required()
-                                    ->createOptionForm(fn() => array_merge(
-                                        UnitResource::getFormSchema(),
-                                        [
-                                            Forms\Components\Hidden::make('store_id')
-                                                ->default(Filament::getTenant()->id),
-                                        ]
-                                    ))
-                                    ->createOptionModalHeading(__('Create New Unit')),
-                                Forms\Components\TextInput::make('quantity')
-                                    ->label(__('Quantity'))
-                                    ->numeric()
-                                    ->required(),
-                                Forms\Components\TextInput::make('cost_price')
-                                    ->label(__('Cost Price'))
-                                    ->numeric()
-                                    ->required(),
-                                Forms\Components\TextInput::make('price')
-                                    ->label(__('Price'))
-                                    ->numeric()
-                                    ->required(),
-                                // Forms\Components\TextInput::make('discount')
-                                //     ->label(__('Discount'))
-                                //     ->numeric(),
-                                // Forms\Components\TextInput::make('vat')
-                                //     ->label(__('VAT'))
-                                //     ->numeric(),
-                                // Forms\Components\TextInput::make('total')
-                                //     ->label(__('Total'))
-                                //     ->numeric(),
-                                // Forms\Components\KeyValue::make('data')
-                                //     ->label(__('Extra Details'))
-                                //     ->columnSpanFull(),
-                            ])
-                            ->reorderableWithButtons()
-                            ->defaultItems(1)
-                            ->cloneable()
-                            ->collapsible()
-                            ->orderColumn('unit_id')
-                            ->columns(2)
-                        // ->grid(2),
-                    ]),
-            ]);
+            ->schema(
+                self::getFormSchema(),
+            );
     }
 
     public static function table(Table $table): Table
@@ -186,6 +75,10 @@ class ProductResource extends Resource
                     ->label(__('Description'))
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('units')
+                    ->label(__('Units'))
+                    ->formatStateUsing(fn($record) => $record->units->map(fn($u) => $u->unit->name . ' (' . $u->quantity . ')')->join(', '))
+                    ->toggleable(isToggledHiddenByDefault: false),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('Created At'))
                     ->dateTime()
@@ -214,7 +107,7 @@ class ProductResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            ProductUnitsRelationManager::class,
         ];
     }
 
@@ -225,5 +118,90 @@ class ProductResource extends Resource
             'create' => Pages\CreateProduct::route('/create'),
             'edit' => Pages\EditProduct::route('/{record}/edit'),
         ];
+    }
+
+    public static function getFormSchema(): array
+    {
+        return [
+            Forms\Components\Section::make()
+                ->heading(__('Product Information'))
+                ->collapsible()
+                ->schema([
+                    // Forms\Components\Select::make('store_id')
+                    //     ->relationship('store', 'name')
+                    //     ->required(),
+                    Forms\Components\Select::make('category_id')
+                        ->label(__('Category'))
+                        ->native(false)
+                        ->preload()
+                        ->searchable()
+                        ->relationship('category', 'name')
+                        ->required()
+                        ->createOptionForm(fn() => array_merge(
+                            CategoryResource::getFormSchema(),
+                            [
+                                Forms\Components\Hidden::make('store_id')
+                                    ->default(Filament::getTenant()->id),
+                            ]
+                        ))
+                        ->createOptionModalHeading(__('Create New Category')),
+                    Forms\Components\Select::make('brand_id')
+                        ->label(__('Brand'))
+                        ->native(false)
+                        ->preload()
+                        ->searchable()
+                        ->relationship('brand', 'name')
+                        ->required()
+                        ->createOptionForm(fn() => array_merge(
+                            BrandResource::getFormSchema(),
+                            [
+                                Forms\Components\Hidden::make('store_id')
+                                    ->default(Filament::getTenant()->id),
+                            ]
+                        ))
+                        ->createOptionModalHeading(__('Create New Brand')),
+                    Forms\Components\TextInput::make('name')
+                        ->label(__('Name'))
+                        ->required()
+                        ->maxLength(255),
+                    Forms\Components\TextInput::make('sku')
+                        ->nullable()
+                        ->unique(ignoreRecord: true)
+                        ->label('SKU')
+                        ->maxLength(255),
+                    Forms\Components\Textarea::make('description')
+                        ->label(__('Description'))
+                        ->maxLength(255),
+                    Forms\Components\FileUpload::make('image')
+                        ->image(),
+                    Forms\Components\KeyValue::make('data')
+                        ->label(__('Extra Details'))
+                        ->columnSpanFull(),
+                ])->columns(2),
+        ];
+    }
+
+    public static function mutateFormDataBeforeFill(array $data): array
+    {
+        \Illuminate\Support\Facades\Log::info('mutateFormDataBeforeFill called', $data);
+
+        if (isset($data['id'])) {
+            $product = \App\Models\Product::with('units')->find($data['id']);
+            $data['units_data'] = $product
+                ? $product->units->map(function ($unit) {
+                    return [
+                        'id' => $unit->id,
+                        'unit_id' => $unit->unit_id,
+                        'quantity' => $unit->quantity,
+                        'cost_price' => $unit->cost_price,
+                        'price' => $unit->price,
+                    ];
+                })->toArray()
+                : [];
+        }
+
+        \Illuminate\Support\Facades\Log::info('mutateFormDataBeforeFill result', $data);
+
+        return $data;
     }
 }

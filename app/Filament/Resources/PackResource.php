@@ -72,46 +72,47 @@ class PackResource extends Resource
                             ->schema([
                                 Forms\Components\Hidden::make('store_id')
                                     ->default(Filament::getTenant()->id),
-                                Forms\Components\Select::make('product_unit_id')
-                                    ->label(__('Product Unit'))
+                                Forms\Components\Select::make('product_id')
+                                    ->label(__('Product'))
+                                    ->options(fn() => \App\Models\Product::query()
+                                        ->where('store_id', Filament::getTenant()->id)
+                                        ->pluck('name', 'id'))
                                     ->required()
-                                    ->searchable()
-                                    ->preload()
-                                    ->native(false)
-                                    ->live()
-                                    ->options(
-                                        fn() => ProductUnit::query()
-                                            ->whereHas('product', function ($query) {
-                                                $query->where('store_id', Filament::getTenant()->id);
-                                            })
-                                            ->with(['unit', 'product'])
+                                    ->reactive()
+                                    ->afterStateUpdated(fn($state, Forms\Get $get, Forms\Set $set) => $set('product_unit_id', null)),
+                                Forms\Components\Select::make('product_unit_id')
+                                    ->label(__('Unit'))
+                                    ->options(function (Forms\Get $get) {
+                                        $productId = $get('product_id');
+                                        if (!$productId) {
+                                            return [];
+                                        }
+                                        return \App\Models\ProductUnit::query()
+                                            ->where('product_id', $productId)
+                                            ->with('unit')
                                             ->get()
                                             ->mapWithKeys(function ($productUnit) {
-                                                $label = "{$productUnit->product->name} ({$productUnit->unit->key} - {$productUnit->price} XOF)";
+                                                $label = "{$productUnit->unit->name} ({$productUnit->unit->key} - {$productUnit->price} XOF)";
                                                 return [$productUnit->id => $label];
-                                            })
-                                    )
-                                    ->createOptionForm(fn() => array_merge(
-                                        ProductResource::getFormSchema(),
-                                        [
-                                            Forms\Components\Hidden::make('store_id')
-                                                ->default(Filament::getTenant()->id),
-                                        ]
-                                    ))
-                                    ->createOptionModalHeading(__('Create New Product'))
-                                    ->afterStateUpdated(fn(Get $get, Set $set) => self::updatePackPrice($get, $set)),
+                                            });
+                                    })
+                                    ->required()
+                                    ->reactive()
+                                    ->searchable()
+                                    ->preload()
+                                    ->native(false),
                                 Forms\Components\TextInput::make('quantity')
                                     ->label(__('Quantity'))
                                     ->live()
                                     ->required()
                                     ->numeric()
-                                    ->afterStateUpdated(fn(Get $get, Set $set) => self::updatePackPrice($get, $set)),
+                                    ->afterStateUpdated(fn(Forms\Get $get, Forms\Set $set) => self::updatePackPrice($get, $set)),
                             ])
                             ->columns(2)
                             ->cloneable()
                             ->reactive()
-                            ->afterStateUpdated(fn(Get $get, Set $set) => self::updatePackPrice($get, $set))
-                            ->afterStateHydrated(fn(Get $get, Set $set) => self::updatePackPrice($get, $set)),
+                            ->afterStateUpdated(fn(Forms\Get $get, Forms\Set $set) => self::updatePackPrice($get, $set))
+                            ->afterStateHydrated(fn(Forms\Get $get, Forms\Set $set) => self::updatePackPrice($get, $set)),
                     ])
             ]);
     }
