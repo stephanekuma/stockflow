@@ -22,6 +22,7 @@ class Purchase extends Model
         'provider_id',
         'invoice_number',
         'purchased_at',
+        'subtotal',
         'total',
         'discount',
         'data',
