@@ -16,4 +16,16 @@ class EditPack extends EditRecord
             Actions\DeleteAction::make(),
         ];
     }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        // Use the beforeSave method from the resource
+        return static::getResource()::beforeSave($data);
+    }
+
+    protected function afterSave(): void
+    {
+        // Use the afterSave method from the resource
+        static::getResource()::afterSave([], $this->record);
+    }
 }

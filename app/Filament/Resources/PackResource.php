@@ -56,7 +56,10 @@ class PackResource extends Resource
                             ->numeric()
                             ->prefix('XOF')
                             ->readOnly()
-                            ->reactive(),
+                            ->reactive()
+                            ->afterStateHydrated(function (Forms\Get $get, Forms\Set $set) {
+                                self::updatePackPrice($get, $set);
+                            }),
                         Forms\Components\KeyValue::make('data')
                             ->label(__('Extra Details'))
                             ->columnSpanFull(),
@@ -72,27 +75,15 @@ class PackResource extends Resource
                             ->schema([
                                 Forms\Components\Hidden::make('store_id')
                                     ->default(Filament::getTenant()->id),
-                                Forms\Components\Select::make('product_id')
-                                    ->label(__('Product'))
-                                    ->options(fn() => \App\Models\Product::query()
-                                        ->where('store_id', Filament::getTenant()->id)
-                                        ->pluck('name', 'id'))
-                                    ->required()
-                                    ->reactive()
-                                    ->afterStateUpdated(fn($state, Forms\Get $get, Forms\Set $set) => $set('product_unit_id', null)),
                                 Forms\Components\Select::make('product_unit_id')
-                                    ->label(__('Unit'))
-                                    ->options(function (Forms\Get $get) {
-                                        $productId = $get('product_id');
-                                        if (!$productId) {
-                                            return [];
-                                        }
+                                    ->label(__('Product & Unit'))
+                                    ->options(function () {
                                         return \App\Models\ProductUnit::query()
-                                            ->where('product_id', $productId)
-                                            ->with('unit')
+                                            ->where('store_id', Filament::getTenant()->id)
+                                            ->with(['unit', 'product'])
                                             ->get()
                                             ->mapWithKeys(function ($productUnit) {
-                                                $label = "{$productUnit->unit->name} ({$productUnit->unit->key} - {$productUnit->price} XOF)";
+                                                $label = "{$productUnit->product->name} - {$productUnit->unit->name} ({$productUnit->unit->key} - {$productUnit->price} XOF - Qty: {$productUnit->quantity})";
                                                 return [$productUnit->id => $label];
                                             });
                                     })
@@ -106,6 +97,8 @@ class PackResource extends Resource
                                     ->live()
                                     ->required()
                                     ->numeric()
+                                    ->default(1)
+                                    ->minValue(1)
                                     ->afterStateUpdated(fn(Forms\Get $get, Forms\Set $set) => self::updatePackPrice($get, $set)),
                             ])
                             ->columns(2)
@@ -121,9 +114,6 @@ class PackResource extends Resource
     {
         return $table
             ->columns([
-                // Tables\Columns\TextColumn::make('store_id')
-                //     ->numeric()
-                //     ->sortable(),
                 Tables\Columns\TextColumn::make('name')
                     ->label(__('Name'))
                     ->sortable()
@@ -181,14 +171,53 @@ class PackResource extends Resource
 
         foreach ($items as $item) {
             $unitId = $item['product_unit_id'] ?? null;
-            $qty = (int) $item['quantity'] ?? 1;
+            $qty = (int) ($item['quantity'] ?? 1);
 
             if ($unitId) {
-                $price = ProductUnit::find($unitId)?->price ?? 0;
-                $total += (float) $price * $qty;
+                $productUnit = \App\Models\ProductUnit::find($unitId);
+                if ($productUnit) {
+                    $total += (float) $productUnit->price * $qty;
+                }
             }
         }
 
-        $set('price', $total);
+        $set('price', number_format($total, 2, '.', ''));
+    }
+
+    public static function beforeSave(array $data): array
+    {
+        // Calculate total price from pack products
+        $totalPrice = 0.0;
+
+        if (isset($data['packProducts']) && is_array($data['packProducts'])) {
+            foreach ($data['packProducts'] as $packProduct) {
+                if (isset($packProduct['product_unit_id']) && isset($packProduct['quantity'])) {
+                    $productUnit = \App\Models\ProductUnit::find($packProduct['product_unit_id']);
+                    if ($productUnit) {
+                        $quantity = (int) $packProduct['quantity'];
+                        $totalPrice += (float) $productUnit->price * $quantity;
+                    }
+                }
+            }
+        }
+
+        // Ensure price is set
+        $data['price'] = $totalPrice;
+
+        return $data;
+    }
+
+    public static function afterSave(array $data, $record): void
+    {
+        // Recalculate and update price after save to ensure it's correct
+        if ($record instanceof \App\Models\Pack) {
+            $totalPrice = 0.0;
+
+            foreach ($record->packProducts as $packProduct) {
+                $totalPrice += (float) $packProduct->productUnit->price * $packProduct->quantity;
+            }
+
+            $record->update(['price' => $totalPrice]);
+        }
     }
 }
