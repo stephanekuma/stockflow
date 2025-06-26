@@ -21,18 +21,27 @@ class EditSale extends EditRecord
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        $sale = $this->record->load('soldProducts.productUnit.product', 'soldProducts.productUnit.unit');
+        $sale = $this->record->load('soldProducts.productUnit.product', 'soldProducts.productUnit.unit', 'soldProducts.pack');
 
         // Charger les produits vendus existants
         $soldProducts = [];
         foreach ($sale->soldProducts as $soldProduct) {
-            $soldProducts[] = [
-                'product_unit_id' => $soldProduct->product_unit_id,
+            $productData = [
                 'quantity' => $soldProduct->quantity,
                 'price' => $soldProduct->price,
                 'discount' => $soldProduct->discount,
                 'total' => $soldProduct->total,
             ];
+
+            if ($soldProduct->pack_id) {
+                $productData['type'] = 'pack';
+                $productData['pack_id'] = $soldProduct->pack_id;
+            } else {
+                $productData['type'] = 'product';
+                $productData['product_unit_id'] = $soldProduct->product_unit_id;
+            }
+
+            $soldProducts[] = $productData;
         }
 
         $data['soldProducts'] = $soldProducts;
@@ -59,17 +68,34 @@ class EditSale extends EditRecord
         // Créer les nouveaux produits vendus
         if (isset($this->data['soldProducts'])) {
             foreach ($this->data['soldProducts'] as $productData) {
-                $productUnit = ProductUnit::find($productData['product_unit_id']);
+                if ($productData['type'] === 'product' && isset($productData['product_unit_id'])) {
+                    $productUnit = ProductUnit::find($productData['product_unit_id']);
 
-                if ($productUnit) {
-                    SoldProduct::create([
-                        'sale_id' => $sale->id,
-                        'product_unit_id' => $productData['product_unit_id'],
-                        'quantity' => $productData['quantity'],
-                        'price' => $productData['price'],
-                        'discount' => $productData['discount'] ?? 0,
-                        'total' => $productData['total'],
-                    ]);
+                    if ($productUnit) {
+                        SoldProduct::create([
+                            'sale_id' => $sale->id,
+                            'product_unit_id' => $productData['product_unit_id'],
+                            'pack_id' => null,
+                            'quantity' => $productData['quantity'],
+                            'price' => $productData['price'],
+                            'discount' => $productData['discount'] ?? 0,
+                            'total' => $productData['total'],
+                        ]);
+                    }
+                } elseif ($productData['type'] === 'pack' && isset($productData['pack_id'])) {
+                    $pack = \App\Models\Pack::with('packProducts.productUnit')->find($productData['pack_id']);
+
+                    if ($pack) {
+                        SoldProduct::create([
+                            'sale_id' => $sale->id,
+                            'product_unit_id' => null,
+                            'pack_id' => $productData['pack_id'],
+                            'quantity' => $productData['quantity'],
+                            'price' => $productData['price'],
+                            'discount' => $productData['discount'] ?? 0,
+                            'total' => $productData['total'],
+                        ]);
+                    }
                 }
             }
         }

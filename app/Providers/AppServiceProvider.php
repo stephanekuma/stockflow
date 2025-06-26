@@ -5,6 +5,8 @@ namespace App\Providers;
 use BezhanSalleh\FilamentLanguageSwitch\LanguageSwitch;
 use BezhanSalleh\PanelSwitch\PanelSwitch;
 use Illuminate\Support\ServiceProvider;
+use App\Models\ProductUnit;
+use App\Observers\ProductUnitObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -21,6 +23,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        ProductUnit::observe(ProductUnitObserver::class);
+
         PanelSwitch::configureUsing(function (PanelSwitch $panelSwitch) {
             $panelSwitch
                 ->canSwitchPanels(fn() => auth()->user()->isAdmin())

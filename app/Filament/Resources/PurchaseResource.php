@@ -6,6 +6,7 @@ use App\Filament\Resources\PurchaseResource\Pages;
 use App\Filament\Resources\PurchaseResource\RelationManagers;
 use App\Models\ProductUnit;
 use App\Models\Purchase;
+use App\Models\StockHistory;
 use Filament\Facades\Filament;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -16,6 +17,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\Auth;
 
 class PurchaseResource extends Resource
 {
@@ -27,19 +29,19 @@ class PurchaseResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        $translation = __('app.Transactions');
+        $translation = __('Transactions');
         return is_string($translation) ? $translation : 'Transactions';
     }
 
     public static function getModelLabel(): string
     {
-        $translation = __('app.Purchase');
+        $translation = __('Purchase');
         return is_string($translation) ? $translation : 'Purchase';
     }
 
     public static function getPluralModelLabel(): string
     {
-        $translation = __('app.Purchases');
+        $translation = __('Purchases');
         return is_string($translation) ? $translation : 'Purchases';
     }
 
@@ -512,14 +514,20 @@ class PurchaseResource extends Resource
                 if (isset($purchasedProduct['product_unit_id']) && isset($purchasedProduct['quantity'])) {
                     $productUnit = ProductUnit::find($purchasedProduct['product_unit_id']);
                     if ($productUnit) {
+                        $before = $productUnit->quantity;
                         $newQuantity = $productUnit->quantity + (int) $purchasedProduct['quantity'];
                         $productUnit->update(['quantity' => $newQuantity]);
+                        $after = $newQuantity;
 
-                        \Illuminate\Support\Facades\Log::info('Product unit quantity updated', [
+                        // Historique de stock (achat)
+                        StockHistory::create([
                             'product_unit_id' => $productUnit->id,
-                            'old_quantity' => $productUnit->quantity,
-                            'added_quantity' => $purchasedProduct['quantity'],
-                            'new_quantity' => $newQuantity,
+                            'user_id' => Auth::id() ?? null,
+                            'type' => 'achat',
+                            'quantity_before' => $before,
+                            'quantity_after' => $after,
+                            'quantity_change' => (int) $purchasedProduct['quantity'],
+                            'note' => 'Achat enregistré via PurchaseResource',
                         ]);
                     }
                 }

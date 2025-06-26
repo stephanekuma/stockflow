@@ -174,4 +174,14 @@ class Store extends Model
     {
         return $this->hasMany(Sale::class);
     }
+
+    /**
+     * Get all of the stockHistories for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function stockHistories(): HasMany
+    {
+        return $this->hasMany(StockHistory::class);
+    }
 }

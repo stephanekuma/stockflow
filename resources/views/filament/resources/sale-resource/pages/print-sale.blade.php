@@ -66,8 +66,29 @@
                     <tbody>
                         @forelse($this->record->soldProducts as $product)
                             <tr class="cec-tr">
-                                <td class="cec-td">{{ $product->productUnit?->product?->name ?? 'N/A' }}</td>
-                                <td class="cec-td text-center">{{ $product->productUnit?->unit?->name ?? 'N/A' }}</td>
+                                <td class="cec-td">
+                                    @if ($product->pack_id)
+                                        <strong>{{ $product->pack->name ?? 'N/A' }}</strong>
+                                        <div class="text-xs text-gray-600 mt-1">
+                                            @if ($product->pack && $product->pack->packProducts)
+                                                @foreach ($product->pack->packProducts as $packProduct)
+                                                    • {{ $packProduct->productUnit->product->name ?? 'N/A' }}
+                                                    ({{ $packProduct->productUnit->unit->name ?? 'N/A' }})
+                                                    - {{ $packProduct->quantity }}x<br>
+                                                @endforeach
+                                            @endif
+                                        </div>
+                                    @else
+                                        {{ $product->productUnit?->product?->name ?? 'N/A' }}
+                                    @endif
+                                </td>
+                                <td class="cec-td text-center">
+                                    @if ($product->pack_id)
+                                        <span class="text-xs text-gray-500">{{ __('Pack') }}</span>
+                                    @else
+                                        {{ $product->productUnit?->unit?->name ?? 'N/A' }}
+                                    @endif
+                                </td>
                                 <td class="cec-td text-right">{{ number_format($product->quantity, 2) }}</td>
                                 <td class="cec-td text-right">{{ number_format($product->price, 2) }} FCFA</td>
                                 <td class="cec-td text-right">{{ number_format($product->total, 2) }} FCFA</td>

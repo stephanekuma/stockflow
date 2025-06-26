@@ -17,7 +17,14 @@ class PrintSale extends Page
 
     public function mount(Sale $record): void
     {
-        $this->record = $record->load(['customer', 'store', 'soldProducts.productUnit.product', 'soldProducts.productUnit.unit']);
+        $this->record = $record->load([
+            'customer',
+            'store',
+            'soldProducts.productUnit.product',
+            'soldProducts.productUnit.unit',
+            'soldProducts.pack.packProducts.productUnit.product',
+            'soldProducts.pack.packProducts.productUnit.unit'
+        ]);
     }
 
     public function getTitle(): string

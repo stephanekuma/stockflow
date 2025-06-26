@@ -346,9 +346,9 @@
             <div class="cec-header-left">
                 <h1 class="cec-title">{{ __('SALES INVOICE') }}</h1>
                 <div class="cec-invoice-details">
-                    <p><strong>{{ __('Invoice #') }}:</strong> {{ $sale->invoice_number ?? 'N/A' }}</p>
-                    <p><strong>{{ __('Date') }}:</strong> {{ $sale->sold_at?->format('d/m/Y') ?? 'N/A' }}</p>
-                    <p><strong>{{ __('Reference') }}:</strong> INV-{{ $sale->id ?? 'N/A' }}</p>
+                    <p><strong>{{ __('Invoice #') }}:</strong> {{ $sale->invoice_number ?? __('N/A') }}</p>
+                    <p><strong>{{ __('Date') }}:</strong> {{ $sale->sold_at?->format('d/m/Y') ?? __('N/A') }}</p>
+                    <p><strong>{{ __('Reference') }}:</strong> INV-{{ $sale->id ?? __('N/A') }}</p>
                 </div>
             </div>
             <div class="cec-header-right">
@@ -402,8 +402,9 @@
                     <tbody>
                         @forelse($sale->soldProducts as $product)
                             <tr class="cec-tr">
-                                <td class="cec-td">{{ $product->productUnit?->product?->name ?? 'N/A' }}</td>
-                                <td class="cec-td text-center">{{ $product->productUnit?->unit?->name ?? 'N/A' }}</td>
+                                <td class="cec-td">{{ $product->productUnit?->product?->name ?? __('N/A') }}</td>
+                                <td class="cec-td text-center">{{ $product->productUnit?->unit?->name ?? __('N/A') }}
+                                </td>
                                 <td class="cec-td text-right">{{ number_format($product->quantity, 2) }}</td>
                                 <td class="cec-td text-right">{{ number_format($product->price, 2) }} FCFA</td>
                                 <td class="cec-td text-right">{{ number_format($product->total, 2) }} FCFA</td>

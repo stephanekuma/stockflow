@@ -28,6 +28,7 @@ class ProductUnit extends Model
         'vat',
         'total',
         'data',
+        'low_stock_threshold',
     ];
 
     /**

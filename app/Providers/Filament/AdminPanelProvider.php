@@ -59,10 +59,14 @@ class AdminPanelProvider extends PanelProvider
                 Authenticate::class,
             ])
             ->tenant(Store::class)
+            ->databaseNotifications()
             ->navigationGroups([
             NavigationGroup::make()
                 ->label(__('Products Management'))
                 ->icon('heroicon-s-cube'),
+            NavigationGroup::make()
+                ->label(__('Transactions'))
+                ->icon('heroicon-s-shopping-cart'),
             NavigationGroup::make()
                 ->label(__('Business Entities'))
                 ->icon('heroicon-s-briefcase'),

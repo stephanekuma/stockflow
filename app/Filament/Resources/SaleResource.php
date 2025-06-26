@@ -38,19 +38,19 @@ class SaleResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        $translation = __('app.Transactions');
+        $translation = __('Transactions');
         return is_string($translation) ? $translation : 'Transactions';
     }
 
     public static function getModelLabel(): string
     {
-        $translation = __('app.Sale');
+        $translation = __('Sale');
         return is_string($translation) ? $translation : 'Sale';
     }
 
     public static function getPluralModelLabel(): string
     {
-        $translation = __('app.Sales');
+        $translation = __('Sales');
         return is_string($translation) ? $translation : 'Sales';
     }
 
@@ -109,13 +109,23 @@ class SaleResource extends Resource
                             ->reorderableWithButtons()
                             ->columns(4)
                             ->schema([
+                                Select::make('type')
+                                    ->label('Type')
+                                    ->options([
+                                        'product' => __('Product'),
+                                        'pack' => __('Pack'),
+                                    ])
+                                    ->default('product')
+                                    ->reactive(),
+
                                 Select::make('product_unit_id')
                                     ->label(__('Product & Unit'))
-                                    ->required()
+                                    ->required(fn(Get $get) => $get('type') === 'product')
                                     ->searchable()
                                     ->preload()
                                     ->native(false)
                                     ->reactive()
+                                    ->hidden(fn(Get $get) => $get('type') !== 'product')
                                     ->options(
                                         fn() => ProductUnit::query()
                                             ->whereHas('product', function ($query) {
@@ -128,91 +138,72 @@ class SaleResource extends Resource
                                                 return [$productUnit->id => $label];
                                             })
                                     )
-                                    ->createOptionAction(
-                                        fn(Forms\Components\Actions\Action $action) => $action
-                                            ->modalHeading(__('Create New Product'))
-                                            ->modalSubmitActionLabel(__('Create Product'))
-                                            ->form([
-                                                Forms\Components\Select::make('category_id')
-                                                    ->label(__('Category'))
-                                                    ->options(fn() => \App\Models\Category::query()
-                                                        ->where('store_id', Filament::getTenant()->id)
-                                                        ->pluck('name', 'id'))
-                                                    ->required(),
-                                                Forms\Components\Select::make('brand_id')
-                                                    ->label(__('Brand'))
-                                                    ->options(fn() => \App\Models\Brand::query()
-                                                        ->where('store_id', Filament::getTenant()->id)
-                                                        ->pluck('name', 'id'))
-                                                    ->required(),
-                                                Forms\Components\TextInput::make('name')
-                                                    ->label(__('Product Name'))
-                                                    ->required()
-                                                    ->maxLength(255),
-                                                Forms\Components\TextInput::make('sku')
-                                                    ->label('SKU')
-                                                    ->maxLength(255),
-                                                Forms\Components\Textarea::make('description')
-                                                    ->label(__('Description'))
-                                                    ->rows(3),
-                                                Forms\Components\Select::make('unit_id')
-                                                    ->label(__('Unit'))
-                                                    ->options(fn() => \App\Models\Unit::query()
-                                                        ->where('store_id', Filament::getTenant()->id)
-                                                        ->pluck('name', 'id'))
-                                                    ->required(),
-                                                Forms\Components\TextInput::make('cost_price')
-                                                    ->label(__('Cost Price'))
-                                                    ->numeric()
-                                                    ->prefix('XOF')
-                                                    ->required(),
-                                                Forms\Components\TextInput::make('price')
-                                                    ->label(__('Selling Price'))
-                                                    ->numeric()
-                                                    ->prefix('XOF')
-                                                    ->required(),
-                                                Forms\Components\TextInput::make('quantity')
-                                                    ->label(__('Initial Stock'))
-                                                    ->numeric()
-                                                    ->default(0)
-                                                    ->required(),
-                                            ])
-                                            ->mutateFormDataUsing(function (array $data): array {
-                                                $data['store_id'] = Filament::getTenant()->id;
-                                                return $data;
-                                            })
-                                            ->using(function (array $data, string $model): string {
-                                                // Create the product first
-                                                $product = \App\Models\Product::create([
-                                                    'store_id' => $data['store_id'],
-                                                    'category_id' => $data['category_id'],
-                                                    'brand_id' => $data['brand_id'],
-                                                    'name' => $data['name'],
-                                                    'sku' => $data['sku'] ?? null,
-                                                    'description' => $data['description'] ?? null,
-                                                ]);
-
-                                                // Create the product unit
-                                                $productUnit = \App\Models\ProductUnit::create([
-                                                    'store_id' => $data['store_id'],
-                                                    'product_id' => $product->id,
-                                                    'unit_id' => $data['unit_id'],
-                                                    'cost_price' => $data['cost_price'],
-                                                    'price' => $data['price'],
-                                                    'quantity' => $data['quantity'],
-                                                ]);
-
-                                                return $productUnit->id;
-                                            })
-                                    )
                                     ->afterStateUpdated(function (Set $set, Get $get) {
                                         $productUnit = ProductUnit::find($get('product_unit_id'));
                                         if ($productUnit) {
                                             $set('price', $productUnit->price ?? 0);
                                             $set('quantity', 1);
-                                            self::calculateProductTotal($get, $set);
+                                            SaleResource::calculateProductTotal($get, $set);
                                         }
                                     }),
+
+                                Select::make('pack_id')
+                                    ->label(__('Pack'))
+                                    ->required(fn(Get $get) => $get('type') === 'pack')
+                                    ->searchable()
+                                    ->preload()
+                                    ->native(false)
+                                    ->reactive()
+                                    ->hidden(fn(Get $get) => $get('type') !== 'pack')
+                                    ->options(
+                                        fn() => \App\Models\Pack::query()
+                                            ->where('store_id', Filament::getTenant()->id)
+                                            ->get()
+                                            ->mapWithKeys(function ($pack) {
+                                                return [$pack->id => $pack->name . ' (' . $pack->price . ' XOF)'];
+                                            })
+                                    )
+                                    ->afterStateUpdated(function (Set $set, Get $get) {
+                                        $pack = \App\Models\Pack::find($get('pack_id'));
+                                        if ($pack) {
+                                            $set('price', $pack->price ?? 0);
+                                            $set('quantity', 1);
+                                            SaleResource::calculateProductTotal($get, $set);
+                                        }
+                                    }),
+
+                                \Filament\Forms\Components\Placeholder::make('pack_components')
+                                    ->label(__('Pack Components'))
+                                    ->content(function (Get $get) {
+                                        $packId = $get('pack_id');
+                                        if (!$packId) return null;
+
+                                        $pack = \App\Models\Pack::with(['packProducts.productUnit.product', 'packProducts.productUnit.unit'])
+                                            ->where('store_id', \Filament\Facades\Filament::getTenant()->id)
+                                            ->find($packId);
+
+                                        if (!$pack || !$pack->packProducts->count()) {
+                                            return __('No components found in this pack');
+                                        }
+
+                                        $html = '<div class="bg-gray-50 rounded-lg p-3">';
+                                        $html .= '<div class="text-xs text-gray-600 mb-2">';
+                                        $html .= '<strong>' . $pack->name . '</strong> - ' . number_format($pack->price, 2) . ' XOF';
+                                        $html .= '</div>';
+                                        $html .= '<div class="space-y-1">';
+
+                                        foreach ($pack->packProducts as $component) {
+                                            $html .= '<div class="flex justify-between text-xs text-gray-600">';
+                                            $html .= '<span>• ' . ($component->productUnit->product->name ?? 'N/A') . ' (' . ($component->productUnit->unit->name ?? 'N/A') . ')</span>';
+                                            $html .= '<span class="font-medium">' . $component->quantity . 'x</span>';
+                                            $html .= '</div>';
+                                        }
+
+                                        $html .= '</div></div>';
+                                        return new \Illuminate\Support\HtmlString($html);
+                                    })
+                                    ->hidden(fn(Get $get) => $get('type') !== 'pack' || !$get('pack_id'))
+                                    ->extraAttributes(['style' => 'margin-top: -10px;']),
 
                                 TextInput::make('quantity')
                                     ->label(__('Quantity'))
@@ -221,7 +212,7 @@ class SaleResource extends Resource
                                     ->minValue(1)
                                     ->default(1)
                                     ->reactive()
-                                    ->afterStateUpdated(fn(Get $get, Set $set) => self::calculateProductTotal($get, $set)),
+                                    ->afterStateUpdated(fn(Get $get, Set $set) => SaleResource::calculateProductTotal($get, $set)),
 
                                 TextInput::make('price')
                                     ->label(__('Unit Price'))
@@ -232,7 +223,7 @@ class SaleResource extends Resource
                                     ->dehydrated()
                                     ->hidden()
                                     ->reactive()
-                                    ->afterStateUpdated(fn(Get $get, Set $set) => self::calculateProductTotal($get, $set)),
+                                    ->afterStateUpdated(fn(Get $get, Set $set) => SaleResource::calculateProductTotal($get, $set)),
 
                                 TextInput::make('discount')
                                     ->label(__('Discount'))
@@ -241,7 +232,7 @@ class SaleResource extends Resource
                                     ->default(0)
                                     ->minValue(0)
                                     ->reactive()
-                                    ->afterStateUpdated(fn(Get $get, Set $set) => self::calculateProductTotal($get, $set)),
+                                    ->afterStateUpdated(fn(Get $get, Set $set) => SaleResource::calculateProductTotal($get, $set)),
 
                                 TextInput::make('total')
                                     ->label(__('Total'))
@@ -251,10 +242,10 @@ class SaleResource extends Resource
                                     ->disabled()
                                     ->reactive(),
                             ])
-                            ->afterStateUpdated(fn(Get $get, Set $set) => self::calculateSaleTotal($get, $set))
-                            ->afterStateHydrated(fn(Get $get, Set $set) => self::calculateSaleTotal($get, $set))
+                            ->afterStateUpdated(fn(Get $get, Set $set) => SaleResource::calculateSaleTotal($get, $set))
+                            ->afterStateHydrated(fn(Get $get, Set $set) => SaleResource::calculateSaleTotal($get, $set))
                             ->live()
-                            ->afterStateUpdated(fn(Get $get, Set $set) => self::calculateSaleTotal($get, $set)),
+                            ->afterStateUpdated(fn(Get $get, Set $set) => SaleResource::calculateSaleTotal($get, $set)),
                     ])
                     ->collapsible(),
 
@@ -290,7 +281,7 @@ class SaleResource extends Resource
                             ->columnSpanFull(),
                     ])
                     ->collapsible()
-                    ->afterStateHydrated(fn(Get $get, Set $set) => self::calculateSaleTotal($get, $set)),
+                    ->afterStateHydrated(fn(Get $get, Set $set) => SaleResource::calculateSaleTotal($get, $set)),
 
                 Hidden::make('store_id')
                     ->default(function () {
@@ -407,7 +398,7 @@ class SaleResource extends Resource
     {
         return parent::getEloquentQuery()
             ->where('store_id', Filament::getTenant()->id)
-            ->with(['soldProducts.productUnit.product', 'soldProducts.productUnit.unit', 'customer']);
+            ->with(['soldProducts.productUnit.product', 'soldProducts.productUnit.unit', 'soldProducts.pack', 'customer']);
     }
 
     public static function calculateProductTotal(Get $get, Set $set): void

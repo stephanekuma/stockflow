@@ -30,6 +30,12 @@ class ProductUnitsRelationManager extends RelationManager
                 ->label(__('Quantity'))
                 ->numeric()
                 ->required(),
+            Forms\Components\TextInput::make('low_stock_threshold')
+                ->label(__('Seuil d\'alerte'))
+                ->numeric()
+                ->minValue(0)
+                ->default(0)
+                ->helperText('Notifier si le stock passe sous ce seuil.'),
             Forms\Components\TextInput::make('cost_price')
                 ->label(__('Cost Price'))
                 ->numeric()
