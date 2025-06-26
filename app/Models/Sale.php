@@ -106,4 +106,28 @@ class Sale extends Model
             'total' => $total,
         ]);
     }
+
+    /**
+     * Get all payments for this sale
+     */
+    public function payments()
+    {
+        return $this->hasMany(\App\Models\SalePayment::class);
+    }
+
+    /**
+     * Montant total payé (somme des paiements)
+     */
+    public function getTotalPaidAttribute()
+    {
+        return $this->payments()->sum('amount');
+    }
+
+    /**
+     * Montant restant dû
+     */
+    public function getAmountDueAttribute()
+    {
+        return max(0, $this->total - $this->total_paid);
+    }
 }

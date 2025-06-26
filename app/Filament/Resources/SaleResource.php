@@ -27,6 +27,8 @@ use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Actions\Action;
+use App\Models\SalePayment;
+use Illuminate\Support\Facades\Auth;
 
 class SaleResource extends Resource
 {
@@ -380,7 +382,7 @@ class SaleResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            \App\Filament\Resources\SaleResource\RelationManagers\SalePaymentsRelationManager::class,
         ];
     }
 
@@ -448,5 +450,27 @@ class SaleResource extends Resource
     public static function afterSave(array $data, $record): void
     {
         $record->calculateTotals();
+    }
+
+    protected function afterCreate(): void
+    {
+        $sale = $this->record;
+        $customer = Customer::find($sale->customer_id);
+        if ($customer) {
+            $balance = $customer->balance;
+            $toPay = $sale->total;
+            $usedBalance = min($balance, $toPay);
+            if ($usedBalance > 0) {
+                // Enregistre un paiement automatique depuis le solde
+                SalePayment::create([
+                    'sale_id' => $sale->id,
+                    'customer_id' => $customer->id,
+                    'amount' => $usedBalance,
+                    'user_id' => Auth::id(),
+                    'note' => 'Paiement automatique via solde client',
+                ]);
+            }
+            // Le reste dû est géré par l'attribut amount_due du modèle Sale
+        }
     }
 }

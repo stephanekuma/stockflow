@@ -12,6 +12,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Filament\Resources\Pages\ViewRecord;
 
 class CustomerResource extends Resource
 {
@@ -64,6 +65,12 @@ class CustomerResource extends Resource
                     ->label(__('Address'))
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('balance')
+                    ->label('Solde disponible')
+                    ->money('XOF'),
+                Tables\Columns\TextColumn::make('amount_due')
+                    ->label('Solde dû')
+                    ->formatStateUsing(fn($record) => number_format($record->sales->sum(fn($sale) => $sale->amount_due), 2) . ' XOF'),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('Created At'))
                     ->dateTime()
@@ -94,6 +101,7 @@ class CustomerResource extends Resource
         return [
             //
             \App\Filament\Resources\CustomerResource\RelationManagers\DepositsRelationManager::class,
+            \App\Filament\Resources\CustomerResource\RelationManagers\SalePaymentsRelationManager::class,
         ];
     }
 

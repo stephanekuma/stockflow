@@ -194,4 +194,14 @@ class Store extends Model
     {
         return $this->hasMany(CustomerDeposit::class);
     }
+
+    /**
+     * Get all of the salePayments for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function salePayments(): HasMany
+    {
+        return $this->hasMany(SalePayment::class);
+    }
 }

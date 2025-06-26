@@ -106,4 +106,9 @@ class CustomerDepositResource extends Resource
             'edit' => Pages\EditCustomerDeposit::route('/{record}/edit'),
         ];
     }
+
+    public static function getNavigationGroup(): string
+    {
+        return __('Transactions');
+    }
 }

@@ -37,7 +37,7 @@ class StockHistoryResource extends Resource
 
     public static function getNavigationGroup(): string
     {
-        return __('Stock Management');
+        return __('Products Management');
     }
 
     public static function getModelLabel(): string

@@ -55,4 +55,32 @@ class Customer extends Model
     {
         return $this->hasMany(\App\Models\CustomerDeposit::class);
     }
+
+    /**
+     * Get all sales for the customer
+     */
+    public function sales()
+    {
+        return $this->hasMany(\App\Models\Sale::class);
+    }
+
+    /**
+     * Get all sale payments for the customer
+     */
+    public function salePayments()
+    {
+        return $this->hasMany(\App\Models\SalePayment::class);
+    }
+
+    /**
+     * Solde disponible du client (dépôts - achats réglés)
+     */
+    public function getBalanceAttribute()
+    {
+        $deposits = $this->deposits()->sum('amount');
+        $salesPaid = $this->sales()->get()->sum(function ($sale) {
+            return min($sale->total, $sale->payments()->sum('amount') + $this->deposits()->sum('amount'));
+        });
+        return $deposits - $salesPaid;
+    }
 }
