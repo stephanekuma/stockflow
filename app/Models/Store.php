@@ -164,4 +164,14 @@ class Store extends Model
     {
         return $this->hasMany(Purchase::class);
     }
+
+    /**
+     * Get all of the sales for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function sales(): HasMany
+    {
+        return $this->hasMany(Sale::class);
+    }
 }

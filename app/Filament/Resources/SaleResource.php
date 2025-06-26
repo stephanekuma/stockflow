@@ -2,28 +2,39 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\PurchaseResource\Pages;
-use App\Filament\Resources\PurchaseResource\RelationManagers;
+use App\Filament\Resources\SaleResource\Pages;
+use App\Filament\Resources\SaleResource\RelationManagers;
+use App\Models\Sale;
+use App\Models\Customer;
 use App\Models\ProductUnit;
-use App\Models\Purchase;
+use App\Models\Store;
 use Filament\Facades\Filament;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Actions\Action;
 
-class PurchaseResource extends Resource
+class SaleResource extends Resource
 {
-    protected static ?string $model = Purchase::class;
+    protected static ?string $model = Sale::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-shopping-cart';
 
-    protected static ?int $navigationSort = 5;
+    protected static ?int $navigationSort = 6;
 
     public static function getNavigationGroup(): ?string
     {
@@ -33,47 +44,54 @@ class PurchaseResource extends Resource
 
     public static function getModelLabel(): string
     {
-        $translation = __('app.Purchase');
-        return is_string($translation) ? $translation : 'Purchase';
+        $translation = __('app.Sale');
+        return is_string($translation) ? $translation : 'Sale';
     }
 
     public static function getPluralModelLabel(): string
     {
-        $translation = __('app.Purchases');
-        return is_string($translation) ? $translation : 'Purchases';
+        $translation = __('app.Sales');
+        return is_string($translation) ? $translation : 'Sales';
     }
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\Section::make(__('Purchase Information'))
+                Forms\Components\Section::make(__('Sale Information'))
                     ->schema([
                         Forms\Components\Grid::make(3)
                             ->schema([
-                                Forms\Components\Select::make('provider_id')
-                                    ->label(__('Provider'))
+                                Select::make('customer_id')
+                                    ->label(__('Customer'))
                                     ->native(false)
                                     ->preload()
                                     ->searchable()
-                                    ->relationship('provider', 'name')
+                                    ->relationship('customer', 'name')
                                     ->required()
                                     ->createOptionForm(fn() => array_merge(
-                                        ProviderResource::getFormSchema(),
+                                        CustomerResource::getFormSchema(),
                                         [
                                             Forms\Components\Hidden::make('store_id')
                                                 ->default(Filament::getTenant()->id),
                                         ]
                                     ))
-                                    ->createOptionModalHeading(__('Create New Provider')),
-                                Forms\Components\TextInput::make('invoice_number')
+                                    ->createOptionModalHeading(__('Create New Customer'))
+                                    ->live()
+                                    ->afterStateUpdated(fn(Set $set) => $set('invoice_number', Sale::generateInvoiceNumber())),
+
+                                TextInput::make('invoice_number')
                                     ->label(__('Invoice Number'))
                                     ->maxLength(255)
                                     ->placeholder(__('Leave empty to auto-generate'))
                                     ->helperText(__('If left empty, an invoice number will be generated automatically'))
-                                    ->unique(ignoreRecord: true),
-                                Forms\Components\DateTimePicker::make('purchased_at')
-                                    ->label(__('Purchase Date'))
+                                    ->unique(ignoreRecord: true)
+                                    ->disabled()
+                                    ->dehydrated()
+                                    ->default(Sale::generateInvoiceNumber()),
+
+                                DateTimePicker::make('sold_at')
+                                    ->label(__('Sale Date'))
                                     ->default(now())
                                     ->required(),
                             ]),
@@ -82,8 +100,8 @@ class PurchaseResource extends Resource
 
                 Forms\Components\Section::make(__('Products Information'))
                     ->schema([
-                        Forms\Components\Repeater::make('purchasedProducts')
-                            ->label(__('Purchased Products'))
+                        Repeater::make('soldProducts')
+                            ->label(__('Sold Products'))
                             ->addActionLabel(__('Add Product'))
                             ->collapsible()
                             ->defaultItems(1)
@@ -91,7 +109,7 @@ class PurchaseResource extends Resource
                             ->reorderableWithButtons()
                             ->columns(4)
                             ->schema([
-                                Forms\Components\Select::make('product_unit_id')
+                                Select::make('product_unit_id')
                                     ->label(__('Product & Unit'))
                                     ->required()
                                     ->searchable()
@@ -149,7 +167,7 @@ class PurchaseResource extends Resource
                                                     ->prefix('XOF')
                                                     ->required(),
                                                 Forms\Components\TextInput::make('price')
-                                                    ->label(__('Sale Price'))
+                                                    ->label(__('Selling Price'))
                                                     ->numeric()
                                                     ->prefix('XOF')
                                                     ->required(),
@@ -190,13 +208,13 @@ class PurchaseResource extends Resource
                                     ->afterStateUpdated(function (Set $set, Get $get) {
                                         $productUnit = ProductUnit::find($get('product_unit_id'));
                                         if ($productUnit) {
-                                            $set('cost_price', $productUnit->cost_price ?? 0);
-                                            $set('price', $productUnit->price);
+                                            $set('price', $productUnit->price ?? 0);
+                                            $set('quantity', 1);
                                             self::calculateProductTotal($get, $set);
                                         }
                                     }),
 
-                                Forms\Components\TextInput::make('quantity')
+                                TextInput::make('quantity')
                                     ->label(__('Quantity'))
                                     ->numeric()
                                     ->required()
@@ -205,54 +223,38 @@ class PurchaseResource extends Resource
                                     ->reactive()
                                     ->afterStateUpdated(fn(Get $get, Set $set) => self::calculateProductTotal($get, $set)),
 
-                                Forms\Components\TextInput::make('cost_price')
-                                    ->label(__('Cost Price'))
+                                TextInput::make('price')
+                                    ->label(__('Unit Price'))
                                     ->numeric()
                                     ->prefix('XOF')
                                     ->required()
+                                    ->disabled()
+                                    ->dehydrated()
+                                    ->hidden()
                                     ->reactive()
                                     ->afterStateUpdated(fn(Get $get, Set $set) => self::calculateProductTotal($get, $set)),
 
-                                Forms\Components\TextInput::make('price')
-                                    ->label(__('Sale Price'))
-                                    ->numeric()
-                                    ->prefix('XOF')
-                                    ->required()
-                                    ->reactive()
-                                    ->afterStateUpdated(fn(Get $get, Set $set) => self::calculateProductTotal($get, $set)),
-
-                                Forms\Components\TextInput::make('discount')
+                                TextInput::make('discount')
                                     ->label(__('Discount'))
                                     ->numeric()
-                                    ->suffix('%')
+                                    ->suffix('XOF')
                                     ->default(0)
                                     ->minValue(0)
-                                    ->maxValue(100)
                                     ->reactive()
                                     ->afterStateUpdated(fn(Get $get, Set $set) => self::calculateProductTotal($get, $set)),
 
-                                Forms\Components\TextInput::make('vat')
-                                    ->label(__('VAT'))
-                                    ->numeric()
-                                    ->suffix('%')
-                                    ->default(0)
-                                    ->minValue(0)
-                                    ->maxValue(100)
-                                    ->reactive()
-                                    ->afterStateUpdated(fn(Get $get, Set $set) => self::calculateProductTotal($get, $set)),
-
-                                Forms\Components\TextInput::make('total')
+                                TextInput::make('total')
                                     ->label(__('Total'))
                                     ->numeric()
                                     ->prefix('XOF')
                                     ->required()
-                                    ->readOnly()
+                                    ->disabled()
                                     ->reactive(),
                             ])
-                            ->afterStateUpdated(fn(Get $get, Set $set) => self::calculatePurchaseTotal($get, $set))
-                            ->afterStateHydrated(fn(Get $get, Set $set) => self::calculatePurchaseTotal($get, $set))
+                            ->afterStateUpdated(fn(Get $get, Set $set) => self::calculateSaleTotal($get, $set))
+                            ->afterStateHydrated(fn(Get $get, Set $set) => self::calculateSaleTotal($get, $set))
                             ->live()
-                            ->afterStateUpdated(fn(Get $get, Set $set) => self::calculatePurchaseTotal($get, $set)),
+                            ->afterStateUpdated(fn(Get $get, Set $set) => self::calculateSaleTotal($get, $set)),
                     ])
                     ->collapsible(),
 
@@ -288,7 +290,12 @@ class PurchaseResource extends Resource
                             ->columnSpanFull(),
                     ])
                     ->collapsible()
-                    ->afterStateHydrated(fn(Get $get, Set $set) => self::calculatePurchaseTotal($get, $set)),
+                    ->afterStateHydrated(fn(Get $get, Set $set) => self::calculateSaleTotal($get, $set)),
+
+                Hidden::make('store_id')
+                    ->default(function () {
+                        return Filament::getTenant()->id;
+                    }),
             ]);
     }
 
@@ -296,53 +303,68 @@ class PurchaseResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('provider.name')
-                    ->label(__('Provider'))
+                TextColumn::make('customer.name')
+                    ->label(__('Customer'))
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('invoice_number')
+
+                TextColumn::make('invoice_number')
                     ->label(__('Invoice'))
                     ->searchable(),
-                Tables\Columns\TextColumn::make('purchased_at')
+
+                TextColumn::make('sold_at')
                     ->label(__('Date'))
                     ->dateTime()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('subtotal')
+
+                TextColumn::make('subtotal')
                     ->label(__('Subtotal'))
                     ->money(currency: 'XOF', locale: 'fr')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('discount')
+
+                TextColumn::make('discount')
                     ->label(__('Discount'))
                     ->money(currency: 'XOF', locale: 'fr')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('total')
+
+                TextColumn::make('total')
                     ->label(__('Total'))
                     ->money(currency: 'XOF', locale: 'fr')
                     ->sortable()
                     ->color('success'),
-                Tables\Columns\TextColumn::make('created_at')
+
+                TextColumn::make('soldProducts_count')
+                    ->label(__('Products'))
+                    ->counts('soldProducts')
+                    ->sortable(),
+
+                TextColumn::make('created_at')
                     ->label(__('Created'))
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('provider')
-                    ->relationship('provider', 'name'),
-                Tables\Filters\Filter::make('purchased_at')
+                Tables\Filters\SelectFilter::make('customer')
+                    ->relationship('customer', 'name')
+                    ->label(__('Customer')),
+
+                Tables\Filters\Filter::make('sold_at')
                     ->form([
-                        Forms\Components\DatePicker::make('purchased_from'),
-                        Forms\Components\DatePicker::make('purchased_until'),
+                        Forms\Components\DatePicker::make('sold_from')
+                            ->label(__('Sold from')),
+                        Forms\Components\DatePicker::make('sold_until')
+                            ->label(__('Sold until')),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
                             ->when(
-                                $data['purchased_from'],
-                                fn(Builder $query, $date): Builder => $query->whereDate('purchased_at', '>=', $date),
+                                $data['sold_from'],
+                                fn(Builder $query, $date): Builder => $query->whereDate('sold_at', '>=', $date),
                             )
                             ->when(
-                                $data['purchased_until'],
-                                fn(Builder $query, $date): Builder => $query->whereDate('purchased_at', '<=', $date),
+                                $data['sold_until'],
+                                fn(Builder $query, $date): Builder => $query->whereDate('sold_at', '<=', $date),
                             );
                     })
             ])
@@ -351,7 +373,7 @@ class PurchaseResource extends Resource
                     ->label(__('Print'))
                     ->icon('heroicon-o-printer')
                     ->color('info')
-                    ->url(fn(Purchase $record): string => static::getUrl('print', ['record' => $record]))
+                    ->url(fn(Sale $record): string => static::getUrl('print', ['record' => $record]))
                     ->openUrlInNewTab(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
@@ -361,7 +383,7 @@ class PurchaseResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
-            ->defaultSort('purchased_at', 'desc');
+            ->defaultSort('sold_at', 'desc');
     }
 
     public static function getRelations(): array
@@ -374,11 +396,18 @@ class PurchaseResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListPurchases::route('/'),
-            'create' => Pages\CreatePurchase::route('/create'),
-            'edit' => Pages\EditPurchase::route('/{record}/edit'),
-            'print' => Pages\PrintPurchase::route('/{record}/print'),
+            'index' => Pages\ListSales::route('/'),
+            'create' => Pages\CreateSale::route('/create'),
+            'edit' => Pages\EditSale::route('/{record}/edit'),
+            'print' => Pages\PrintSale::route('/{record}/print'),
         ];
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->where('store_id', Filament::getTenant()->id)
+            ->with(['soldProducts.productUnit.product', 'soldProducts.productUnit.unit', 'customer']);
     }
 
     public static function calculateProductTotal(Get $get, Set $set): void
@@ -386,19 +415,16 @@ class PurchaseResource extends Resource
         $quantity = (float) ($get('quantity') ?? 0);
         $price = (float) ($get('price') ?? 0);
         $discount = (float) ($get('discount') ?? 0);
-        $vat = (float) ($get('vat') ?? 0);
 
         $subtotal = $quantity * $price;
-        $discountAmount = $subtotal * ($discount / 100);
-        $vatAmount = ($subtotal - $discountAmount) * ($vat / 100);
-        $total = $subtotal - $discountAmount + $vatAmount;
+        $total = $subtotal - $discount;
 
         $set('total', number_format($total, 2, '.', ''));
     }
 
-    public static function calculatePurchaseTotal(Get $get, Set $set): void
+    public static function calculateSaleTotal(Get $get, Set $set): void
     {
-        $products = $get('purchasedProducts') ?? [];
+        $products = $get('soldProducts') ?? [];
         $subtotal = 0.0;
         $totalDiscount = 0.0;
 
@@ -406,124 +432,30 @@ class PurchaseResource extends Resource
             $quantity = (float) ($product['quantity'] ?? 0);
             $price = (float) ($product['price'] ?? 0);
             $discount = (float) ($product['discount'] ?? 0);
-            $vat = (float) ($product['vat'] ?? 0);
 
             $productSubtotal = $quantity * $price;
-            $discountAmount = $productSubtotal * ($discount / 100);
-            $vatAmount = ($productSubtotal - $discountAmount) * ($vat / 100);
-            $productTotal = $productSubtotal - $discountAmount + $vatAmount;
-
-            $subtotal += $productSubtotal; // Subtotal sans remises ni TVA
-            $totalDiscount += $discountAmount; // Somme des remises
+            $subtotal += $productSubtotal;
+            $totalDiscount += $discount;
         }
 
-        $total = $subtotal - $totalDiscount; // Total = Subtotal - Total des remises
+        $total = $subtotal - $totalDiscount;
 
-        // Set the hidden fields with calculated values
-        $set('subtotal', $subtotal);
-        $set('discount', $totalDiscount); // Total discount calculé automatiquement
-        $set('total', $total);
+        $set('subtotal', number_format($subtotal, 2, '.', ''));
+        $set('discount', number_format($totalDiscount, 2, '.', ''));
+        $set('total', number_format($total, 2, '.', ''));
     }
 
     public static function beforeSave(array $data): array
     {
-        \Illuminate\Support\Facades\Log::info('Purchase beforeSave - Raw data received', [
-            'data_keys' => array_keys($data),
-            'subtotal' => $data['subtotal'] ?? 'not_set',
-            'discount' => $data['discount'] ?? 'not_set',
-            'total' => $data['total'] ?? 'not_set',
-        ]);
-
-        // Generate invoice number if not provided
         if (empty($data['invoice_number'])) {
-            $data['invoice_number'] = self::generateInvoiceNumber();
-        }
-
-        // Use the values that are already calculated in the form
-        // Only recalculate if they are not present
-        if (!isset($data['subtotal']) || !isset($data['discount']) || !isset($data['total'])) {
-            $subtotal = 0.0;
-            $totalDiscount = 0.0;
-
-            if (isset($data['purchasedProducts']) && is_array($data['purchasedProducts'])) {
-                foreach ($data['purchasedProducts'] as $product) {
-                    $quantity = (float) ($product['quantity'] ?? 0);
-                    $price = (float) ($product['price'] ?? 0);
-                    $discount = (float) ($product['discount'] ?? 0);
-
-                    $productSubtotal = $quantity * $price;
-                    $discountAmount = $productSubtotal * ($discount / 100);
-
-                    $subtotal += $productSubtotal;
-                    $totalDiscount += $discountAmount;
-                }
-            }
-
-            $total = $subtotal - $totalDiscount;
-
-            $data['subtotal'] = $subtotal;
-            $data['discount'] = $totalDiscount;
-            $data['total'] = $total;
-
-            \Illuminate\Support\Facades\Log::info('Purchase beforeSave - Values recalculated', [
-                'subtotal' => $subtotal,
-                'discount' => $totalDiscount,
-                'total' => $total,
-            ]);
-        } else {
-            \Illuminate\Support\Facades\Log::info('Purchase beforeSave - Using existing calculated values', [
-                'subtotal' => $data['subtotal'],
-                'discount' => $data['discount'],
-                'total' => $data['total'],
-            ]);
+            $data['invoice_number'] = Sale::generateInvoiceNumber();
         }
 
         return $data;
     }
 
-    public static function generateInvoiceNumber(): string
-    {
-        $lastPurchase = Purchase::where('store_id', Filament::getTenant()->id)
-            ->orderBy('id', 'desc')
-            ->first();
-
-        $lastNumber = $lastPurchase ? (int) preg_replace('/[^0-9]/', '', $lastPurchase->invoice_number) : 0;
-        $newNumber = $lastNumber + 1;
-
-        return 'PUR-' . str_pad($newNumber, 6, '0', STR_PAD_LEFT);
-    }
-
     public static function afterSave(array $data, $record): void
     {
-        // Log the saved record for verification
-        if ($record instanceof Purchase) {
-            \Illuminate\Support\Facades\Log::info('Purchase afterSave - Record saved', [
-                'purchase_id' => $record->id,
-                'subtotal' => $record->subtotal,
-                'discount' => $record->discount,
-                'total' => $record->total,
-                'invoice_number' => $record->invoice_number,
-            ]);
-        }
-
-        // Update product unit quantities after purchase
-        if ($record instanceof Purchase && isset($data['purchasedProducts'])) {
-            foreach ($data['purchasedProducts'] as $purchasedProduct) {
-                if (isset($purchasedProduct['product_unit_id']) && isset($purchasedProduct['quantity'])) {
-                    $productUnit = ProductUnit::find($purchasedProduct['product_unit_id']);
-                    if ($productUnit) {
-                        $newQuantity = $productUnit->quantity + (int) $purchasedProduct['quantity'];
-                        $productUnit->update(['quantity' => $newQuantity]);
-
-                        \Illuminate\Support\Facades\Log::info('Product unit quantity updated', [
-                            'product_unit_id' => $productUnit->id,
-                            'old_quantity' => $productUnit->quantity,
-                            'added_quantity' => $purchasedProduct['quantity'],
-                            'new_quantity' => $newQuantity,
-                        ]);
-                    }
-                }
-            }
-        }
+        $record->calculateTotals();
     }
 }
