@@ -344,7 +344,12 @@ class PurchaseResource extends Resource
                     })
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
+                Tables\Actions\Action::make('print')
+                    ->label(__('Print'))
+                    ->icon('heroicon-o-printer')
+                    ->color('info')
+                    ->url(fn(Purchase $record): string => static::getUrl('print', ['record' => $record]))
+                    ->openUrlInNewTab(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
@@ -369,6 +374,7 @@ class PurchaseResource extends Resource
             'index' => Pages\ListPurchases::route('/'),
             'create' => Pages\CreatePurchase::route('/create'),
             'edit' => Pages\EditPurchase::route('/{record}/edit'),
+            'print' => Pages\PrintPurchase::route('/{record}/print'),
         ];
     }
 
@@ -481,7 +487,7 @@ class PurchaseResource extends Resource
         $lastNumber = $lastPurchase ? (int) preg_replace('/[^0-9]/', '', $lastPurchase->invoice_number) : 0;
         $newNumber = $lastNumber + 1;
 
-        return 'INV-' . str_pad($newNumber, 6, '0', STR_PAD_LEFT);
+        return 'PUR-' . str_pad($newNumber, 6, '0', STR_PAD_LEFT);
     }
 
     public static function afterSave(array $data, $record): void
