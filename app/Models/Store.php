@@ -184,4 +184,14 @@ class Store extends Model
     {
         return $this->hasMany(StockHistory::class);
     }
+
+    /**
+     * Get all of the customerDeposits for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function customerDeposits(): HasMany
+    {
+        return $this->hasMany(CustomerDeposit::class);
+    }
 }

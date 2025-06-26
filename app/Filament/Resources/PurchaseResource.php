@@ -58,7 +58,11 @@ class PurchaseResource extends Resource
                                     ->native(false)
                                     ->preload()
                                     ->searchable()
-                                    ->relationship('provider', 'name')
+                                    ->relationship(
+                                        'provider',
+                                        'name',
+                                        fn($query) => $query->where('store_id', \Filament\Facades\Filament::getTenant()->id)
+                                    )
                                     ->required()
                                     ->createOptionForm(fn() => array_merge(
                                         ProviderResource::getFormSchema(),
@@ -142,7 +146,7 @@ class PurchaseResource extends Resource
                                                 Forms\Components\Select::make('unit_id')
                                                     ->label(__('Unit'))
                                                     ->options(fn() => \App\Models\Unit::query()
-                                                        ->where('store_id', Filament::getTenant()->id)
+                                                        ->where('store_id', \Filament\Facades\Filament::getTenant()->id)
                                                         ->pluck('name', 'id'))
                                                     ->required(),
                                                 Forms\Components\TextInput::make('cost_price')

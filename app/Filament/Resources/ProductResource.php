@@ -135,7 +135,11 @@ class ProductResource extends Resource
                         ->native(false)
                         ->preload()
                         ->searchable()
-                        ->relationship('category', 'name')
+                        ->relationship(
+                            'category',
+                            'name',
+                            fn($query) => $query->where('store_id', \Filament\Facades\Filament::getTenant()->id)
+                        )
                         ->required()
                         ->createOptionForm(fn() => array_merge(
                             CategoryResource::getFormSchema(),
@@ -150,7 +154,11 @@ class ProductResource extends Resource
                         ->native(false)
                         ->preload()
                         ->searchable()
-                        ->relationship('brand', 'name')
+                        ->relationship(
+                            'brand',
+                            'name',
+                            fn($query) => $query->where('store_id', \Filament\Facades\Filament::getTenant()->id)
+                        )
                         ->required()
                         ->createOptionForm(fn() => array_merge(
                             BrandResource::getFormSchema(),

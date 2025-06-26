@@ -79,7 +79,7 @@ class PackResource extends Resource
                                     ->label(__('Product & Unit'))
                                     ->options(function () {
                                         return \App\Models\ProductUnit::query()
-                                            ->where('store_id', Filament::getTenant()->id)
+                                            ->where('store_id', \Filament\Facades\Filament::getTenant()->id)
                                             ->with(['unit', 'product'])
                                             ->get()
                                             ->mapWithKeys(function ($productUnit) {

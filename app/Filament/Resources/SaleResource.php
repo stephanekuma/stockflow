@@ -157,7 +157,7 @@ class SaleResource extends Resource
                                     ->hidden(fn(Get $get) => $get('type') !== 'pack')
                                     ->options(
                                         fn() => \App\Models\Pack::query()
-                                            ->where('store_id', Filament::getTenant()->id)
+                                            ->where('store_id', \Filament\Facades\Filament::getTenant()->id)
                                             ->get()
                                             ->mapWithKeys(function ($pack) {
                                                 return [$pack->id => $pack->name . ' (' . $pack->price . ' XOF)'];
