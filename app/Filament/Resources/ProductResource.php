@@ -15,6 +15,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\ProductResource\RelationManagers\ProductUnitsRelationManager;
+use App\Filament\Resources\ProductResource\Widgets\StockHistoryChart;
 
 class ProductResource extends Resource
 {
@@ -108,6 +109,7 @@ class ProductResource extends Resource
     {
         return [
             ProductUnitsRelationManager::class,
+            \App\Filament\Resources\ProductResource\RelationManagers\StockHistoriesRelationManager::class,
         ];
     }
 
@@ -211,5 +213,12 @@ class ProductResource extends Resource
         \Illuminate\Support\Facades\Log::info('mutateFormDataBeforeFill result', $data);
 
         return $data;
+    }
+
+    public static function getWidgets(): array
+    {
+        return [
+            StockHistoryChart::class,
+        ];
     }
 }

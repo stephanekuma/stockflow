@@ -98,6 +98,10 @@ class StockHistoryResource extends Resource
             ->filters([
                 SelectFilter::make('type')
                     ->label('Type de mouvement')
+                    ->native(false)
+                    ->searchable()
+                    ->multiple()
+                    ->preload()
                     ->options([
                         'vente' => 'Vente',
                         'vente (pack)' => 'Vente (Pack)',
@@ -107,10 +111,16 @@ class StockHistoryResource extends Resource
                 SelectFilter::make('product_unit_id')
                     ->label('Unité de produit')
                     ->relationship('productUnit', 'id')
+                    ->native(false)
+                    ->searchable()
+                    ->preload()
                     ->getOptionLabelFromRecordUsing(fn($record) => ($record->product->name ?? '') . ' (' . ($record->unit->name ?? '') . ')'),
                 SelectFilter::make('user_id')
                     ->label('Utilisateur')
-                    ->relationship('user', 'name'),
+                    ->relationship('user', 'name')
+                    ->native(false)
+                    ->searchable()
+                    ->preload(),
                 Filter::make('created_at')
                     ->label('Date')
                     ->form([
@@ -124,7 +134,13 @@ class StockHistoryResource extends Resource
                     }),
             ])
             ->actions([
-                ViewAction::make(),
+                // ViewAction::make(),
+                // Action::make('view')
+                //     ->label('Voir')
+                //     ->icon('heroicon-o-eye')
+                //     ->action(function ($record) {
+                //         return redirect()->route('filament.admin.resources.stock-histories.view', $record);
+                //     }),
                 DeleteAction::make(),
                 Action::make('export_csv')
                     ->label('Exporter CSV')
@@ -160,7 +176,7 @@ class StockHistoryResource extends Resource
             // 'create' => Pages\CreateStockHistory::route('/create'),
             // 'view' => Pages\ViewStockHistory::route('/{record}'),
             // 'edit' => Pages\EditStockHistory::route('/{record}/edit'),
-            'timeline' => Pages\TimelineStockHistory::route('/timeline'),
+            // 'timeline' => Pages\TimelineStockHistory::route('/timeline'),
         ];
     }
 }

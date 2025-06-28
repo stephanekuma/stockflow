@@ -41,6 +41,8 @@ class ProductUnit extends Model
     protected $casts = [
         'data' => 'array',
         'custom_conversion_factor' => 'decimal:4',
+        'quantity' => 'integer',
+        'low_stock_threshold' => 'integer',
     ];
 
     /**

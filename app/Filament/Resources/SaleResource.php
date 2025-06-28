@@ -29,14 +29,25 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Actions\Action;
 use App\Models\SalePayment;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Product;
+use App\Models\Unit;
+use App\Services\UnitConversionService;
+use Filament\Tables\Columns\BadgeColumn;
+use App\Filament\Resources\CustomerResource;
 
 class SaleResource extends Resource
 {
     protected static ?string $model = Sale::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-shopping-cart';
+    protected static ?string $navigationIcon = 'heroicon-o-currency-dollar';
 
-    protected static ?int $navigationSort = 6;
+    protected static ?int $navigationSort = 4;
+
+    // public static function getNavigationGroup(): ?string
+    // {
+    //     $translation = __('Sales Management');
+    //     return is_string($translation) ? $translation : 'Sales Management';
+    // }
 
     public static function getNavigationGroup(): ?string
     {
@@ -64,6 +75,7 @@ class SaleResource extends Resource
                     ->schema([
                         Forms\Components\Placeholder::make('customer_balance')
                             ->label('Solde client disponible')
+                            ->live()
                             ->content(
                                 fn(Get $get) => ($customerId = $get('customer_id'))
                                     ? (\App\Models\Customer::find($customerId)?->balance ?? 0) . ' XOF'
@@ -72,7 +84,7 @@ class SaleResource extends Resource
                     ]),
                 Forms\Components\Section::make(__('Sale Information'))
                     ->schema([
-                        Forms\Components\Grid::make(3)
+                        Forms\Components\Grid::make(2)
                             ->schema([
                                 Select::make('customer_id')
                                     ->label(__('Customer'))
@@ -104,6 +116,12 @@ class SaleResource extends Resource
                                     ->label(__('Sale Date'))
                                     ->default(now())
                                     ->required(),
+                                Select::make('status')
+                                    ->label(__('Status'))
+                                    ->options(Sale::getStatusOptions())
+                                    ->default(Sale::STATUS_IN_PROGRESS)
+                                    ->required()
+                                    ->native(false),
                             ]),
                     ])
                     ->collapsible(),
@@ -117,45 +135,127 @@ class SaleResource extends Resource
                             ->defaultItems(1)
                             ->cloneable()
                             ->reorderableWithButtons()
-                            ->columns(4)
+                            ->columns(5)
                             ->schema([
                                 Select::make('type')
-                                    ->label('Type')
+                                    ->native(false)
+                                    ->label(__('Type'))
                                     ->options([
                                         'product' => __('Product'),
                                         'pack' => __('Pack'),
                                     ])
                                     ->default('product')
-                                    ->reactive(),
+                                    ->reactive()
+                                    ->live()
+                                    ->afterStateUpdated(function (Set $set, Get $get) {
+                                        $type = $get('type');
 
-                                Select::make('product_unit_id')
-                                    ->label(__('Product & Unit'))
+                                        // Réinitialiser tous les champs dépendants
+                                        $set('product_id', null);
+                                        $set('unit_id', null);
+                                        $set('pack_id', null);
+                                        $set('price', 0);
+                                        $set('quantity', 1);
+                                        $set('product_unit_id', null);
+                                        $set('discount', 0);
+                                        $set('total', 0);
+
+                                        // Réinitialiser le total
+                                        SaleResource::calculateProductTotal($get, $set);
+                                    }),
+
+                                Select::make('product_id')
+                                    ->label(__('Product'))
                                     ->required(fn(Get $get) => $get('type') === 'product')
                                     ->searchable()
                                     ->preload()
                                     ->native(false)
                                     ->reactive()
+                                    ->live()
                                     ->hidden(fn(Get $get) => $get('type') !== 'product')
                                     ->options(
-                                        fn() => ProductUnit::query()
-                                            ->whereHas('product', function ($query) {
-                                                $query->where('store_id', Filament::getTenant()->id);
-                                            })
-                                            ->with(['unit', 'product'])
+                                        fn() => Product::query()
+                                            ->where('store_id', Filament::getTenant()->id)
                                             ->get()
-                                            ->mapWithKeys(function ($productUnit) {
-                                                $label = "{$productUnit->product->name} - {$productUnit->unit->name} ({$productUnit->unit->key} - {$productUnit->price} XOF - Stock: {$productUnit->quantity})";
-                                                return [$productUnit->id => $label];
+                                            ->mapWithKeys(function ($product) {
+                                                return [$product->id => $product->name];
                                             })
                                     )
                                     ->afterStateUpdated(function (Set $set, Get $get) {
-                                        $productUnit = ProductUnit::find($get('product_unit_id'));
-                                        if ($productUnit) {
-                                            $set('price', $productUnit->price ?? 0);
-                                            $set('quantity', 1);
+                                        // Réinitialiser les champs dépendants
+                                        $set('unit_id', null);
+                                        $set('price', 0);
+                                        $set('quantity', 1);
+                                        $set('product_unit_id', null);
+                                        $set('available_units', []);
+                                        $set('stock_available', false);
+
+                                        // Réinitialiser le total
+                                        SaleResource::calculateProductTotal($get, $set);
+                                    }),
+
+                                Select::make('unit_id')
+                                    ->label(__('Unit'))
+                                    ->required(fn(Get $get) => $get('type') === 'product' && $get('product_id'))
+                                    ->searchable()
+                                    ->preload()
+                                    ->native(false)
+                                    ->reactive()
+                                    ->hidden(fn(Get $get) => $get('type') !== 'product' || !$get('product_id'))
+                                    ->options(function (Get $get) {
+                                        $productId = $get('product_id');
+                                        if (!$productId) return [];
+
+                                        $productUnits = ProductUnit::where('product_id', $productId)
+                                            ->where('store_id', Filament::getTenant()->id)
+                                            ->with(['unit', 'product'])
+                                            ->get();
+
+                                        return $productUnits->mapWithKeys(function ($productUnit) {
+                                            $stockInfo = $productUnit->quantity > 0 ? "Stock: {$productUnit->quantity}" : "Rupture";
+                                            $label = "{$productUnit->unit->name} ({$productUnit->unit->key}) - {$productUnit->price} XOF - {$stockInfo}";
+                                            return [$productUnit->unit->id => $label];
+                                        });
+                                    })
+                                    ->afterStateUpdated(function (Set $set, Get $get) {
+                                        $productId = $get('product_id');
+                                        $unitId = $get('unit_id');
+
+                                        if ($productId && $unitId) {
+                                            $productUnit = ProductUnit::where('product_id', $productId)
+                                                ->where('unit_id', $unitId)
+                                                ->where('store_id', Filament::getTenant()->id)
+                                                ->first();
+
+                                            if ($productUnit) {
+                                                // Remplir automatiquement le prix avec une valeur par défaut si nécessaire
+                                                $price = $productUnit->price ?? 0;
+                                                $set('price', $price);
+                                                $set('quantity', 1);
+                                                $set('product_unit_id', $productUnit->id);
+
+                                                // Vérifier la disponibilité du stock
+                                                $requestedQuantity = $get('quantity') ?? 1;
+                                                $service = new UnitConversionService();
+                                                $hasStock = $service->hasEnoughStock($productId, $requestedQuantity, $unitId);
+                                                $set('stock_available', $hasStock);
+
+                                                // Calculer le total
+                                                SaleResource::calculateProductTotal($get, $set);
+                                            } else {
+                                                // Si aucun ProductUnit trouvé, réinitialiser le prix
+                                                $set('price', 0);
+                                                $set('product_unit_id', null);
+                                                SaleResource::calculateProductTotal($get, $set);
+                                            }
+                                        } else {
+                                            // Si product_id ou unit_id manquent, réinitialiser le prix
+                                            $set('price', 0);
+                                            $set('product_unit_id', null);
                                             SaleResource::calculateProductTotal($get, $set);
                                         }
-                                    }),
+                                    })
+                                    ->live(),
 
                                 Select::make('pack_id')
                                     ->label(__('Pack'))
@@ -164,6 +264,7 @@ class SaleResource extends Resource
                                     ->preload()
                                     ->native(false)
                                     ->reactive()
+                                    ->live()
                                     ->hidden(fn(Get $get) => $get('type') !== 'pack')
                                     ->options(
                                         fn() => \App\Models\Pack::query()
@@ -176,8 +277,15 @@ class SaleResource extends Resource
                                     ->afterStateUpdated(function (Set $set, Get $get) {
                                         $pack = \App\Models\Pack::find($get('pack_id'));
                                         if ($pack) {
-                                            $set('price', $pack->price ?? 0);
+                                            // Remplir automatiquement le prix du pack avec une valeur par défaut si nécessaire
+                                            $price = $pack->price ?? 0;
+                                            $set('price', $price);
                                             $set('quantity', 1);
+                                            // Calculer le total
+                                            SaleResource::calculateProductTotal($get, $set);
+                                        } else {
+                                            // Si aucun pack trouvé, réinitialiser le prix
+                                            $set('price', 0);
                                             SaleResource::calculateProductTotal($get, $set);
                                         }
                                     }),
@@ -215,25 +323,119 @@ class SaleResource extends Resource
                                     ->hidden(fn(Get $get) => $get('type') !== 'pack' || !$get('pack_id'))
                                     ->extraAttributes(['style' => 'margin-top: -10px;']),
 
+                                Placeholder::make('unit_conversion_info')
+                                    ->label(__('Unit Conversion Info'))
+                                    ->content(function (Get $get) {
+                                        $productId = $get('product_id');
+                                        $unitId = $get('unit_id');
+                                        $quantity = (int) ($get('quantity') ?? 1);
+
+                                        if (!$productId || !$unitId) return null;
+
+                                        $service = new UnitConversionService();
+
+                                        try {
+                                            $strategy = $service->getOptimalSellingStrategy($productId, $unitId, $quantity);
+
+                                            if ($strategy['can_sell']) {
+                                                $html = '<div class="bg-green-50 border border-green-200 rounded-lg p-3">';
+                                                $html .= '<div class="text-green-800 text-sm font-medium">✅ Vente possible</div>';
+
+                                                if (count($strategy['strategy']) > 1) {
+                                                    $html .= '<div class="text-green-700 text-xs mt-1">Stratégie de conversion :</div>';
+                                                    foreach ($strategy['strategy'] as $item) {
+                                                        $html .= '<div class="text-green-700 text-xs">• ' . $item['unit_name'] . ': ' . $item['quantity'] . '</div>';
+                                                    }
+                                                }
+
+                                                $html .= '</div>';
+                                                return new \Illuminate\Support\HtmlString($html);
+                                            } else {
+                                                $html = '<div class="bg-red-50 border border-red-200 rounded-lg p-3">';
+                                                $html .= '<div class="text-red-800 text-sm font-medium">❌ Stock insuffisant</div>';
+                                                $html .= '<div class="text-red-700 text-xs">Il manque ' . $strategy['missing_quantity'] . ' unités de base</div>';
+                                                $html .= '</div>';
+                                                return new \Illuminate\Support\HtmlString($html);
+                                            }
+                                        } catch (\Exception $e) {
+                                            return null;
+                                        }
+                                    })
+                                    ->hidden(fn(Get $get) => $get('type') !== 'product' || !$get('product_id') || !$get('unit_id'))
+                                    ->extraAttributes(['style' => 'margin-top: -10px;']),
+
                                 TextInput::make('quantity')
                                     ->label(__('Quantity'))
                                     ->numeric()
                                     ->required()
                                     ->minValue(1)
+                                    ->step(1)
                                     ->default(1)
                                     ->reactive()
-                                    ->afterStateUpdated(fn(Get $get, Set $set) => SaleResource::calculateProductTotal($get, $set)),
+                                    ->live()
+                                    ->afterStateUpdated(function (Get $get, Set $set) {
+                                        SaleResource::calculateProductTotal($get, $set);
+
+                                        // Mettre à jour l'info de conversion
+                                        $productId = $get('product_id');
+                                        $unitId = $get('unit_id');
+                                        $quantity = (int) ($get('quantity') ?? 1);
+
+                                        if ($productId && $unitId && $quantity > 0) {
+                                            $service = new UnitConversionService();
+                                            $hasStock = $service->hasEnoughStock($productId, $quantity, $unitId);
+                                            $set('stock_available', $hasStock);
+                                        }
+                                    }),
 
                                 TextInput::make('price')
                                     ->label(__('Unit Price'))
                                     ->numeric()
                                     ->prefix('XOF')
                                     ->required()
-                                    ->disabled()
-                                    ->dehydrated()
-                                    ->hidden()
+                                    ->minValue(0)
+                                    ->step(5)
+                                    ->default(0)
                                     ->reactive()
-                                    ->afterStateUpdated(fn(Get $get, Set $set) => SaleResource::calculateProductTotal($get, $set)),
+                                    ->live()
+                                    ->helperText(__('Prix unitaire - sera rempli automatiquement lors de la sélection du produit et de l\'unité'))
+                                    ->afterStateUpdated(function (Get $get, Set $set) {
+                                        // Si le prix est à 0, essayer de le remplir automatiquement
+                                        $price = $get('price');
+                                        if ($price == 0) {
+                                            $productId = $get('product_id');
+                                            $unitId = $get('unit_id');
+                                            $packId = $get('pack_id');
+
+                                            if ($productId && $unitId) {
+                                                $productUnit = ProductUnit::where('product_id', $productId)
+                                                    ->where('unit_id', $unitId)
+                                                    ->where('store_id', Filament::getTenant()->id)
+                                                    ->first();
+
+                                                if ($productUnit && $productUnit->price > 0) {
+                                                    $set('price', $productUnit->price);
+                                                }
+                                            } elseif ($packId) {
+                                                $pack = \App\Models\Pack::find($packId);
+                                                if ($pack && $pack->price > 0) {
+                                                    $set('price', $pack->price);
+                                                }
+                                            }
+                                        }
+
+                                        SaleResource::calculateProductTotal($get, $set);
+                                    }),
+
+                                Select::make('discount_type')
+                                    ->label(__('Discount Type'))
+                                    ->native(false)
+                                    ->options([
+                                        'amount' => __('Amount'),
+                                        'percent' => __('Percent'),
+                                    ])
+                                    ->default('amount')
+                                    ->reactive(),
 
                                 TextInput::make('discount')
                                     ->label(__('Discount'))
@@ -242,7 +444,7 @@ class SaleResource extends Resource
                                     ->default(0)
                                     ->minValue(0)
                                     ->reactive()
-                                    ->afterStateUpdated(fn(Get $get, Set $set) => SaleResource::calculateProductTotal($get, $set)),
+                                    ->helperText(__('If percent, enter the percentage (ex: 10 for 10%). If amount, enter the value.')),
 
                                 TextInput::make('total')
                                     ->label(__('Total'))
@@ -251,8 +453,21 @@ class SaleResource extends Resource
                                     ->required()
                                     ->disabled()
                                     ->reactive(),
+
+                                Forms\Components\Hidden::make('product_unit_id'),
+                                Forms\Components\Hidden::make('stock_available'),
                             ])
-                            ->afterStateUpdated(fn(Get $get, Set $set) => SaleResource::calculateSaleTotal($get, $set))
+                            ->afterStateUpdated(function (Set $set, Get $get, $state) {
+                                // Calcul du total selon le type de remise
+                                $quantity = (float)($get('quantity') ?? 0);
+                                $price = (float)($get('price') ?? 0);
+                                $discount = (float)($get('discount') ?? 0);
+                                $discountType = $get('discount_type') ?? 'amount';
+                                $subtotal = $quantity * $price;
+                                $discountValue = $discountType === 'percent' ? ($subtotal * $discount / 100) : $discount;
+                                $total = $subtotal - $discountValue;
+                                $set('total', number_format($total, 2, '.', ''));
+                            })
                             ->afterStateHydrated(fn(Get $get, Set $set) => SaleResource::calculateSaleTotal($get, $set))
                             ->live()
                             ->afterStateUpdated(fn(Get $get, Set $set) => SaleResource::calculateSaleTotal($get, $set)),
@@ -293,26 +508,44 @@ class SaleResource extends Resource
                     ->collapsible()
                     ->afterStateHydrated(fn(Get $get, Set $set) => SaleResource::calculateSaleTotal($get, $set)),
 
-                Forms\Components\Section::make(__('Paiement'))
+                // Forms\Components\Section::make(__('Paiement'))
+                //     ->schema([
+                //         Forms\Components\TextInput::make('amount_paid')
+                //             ->label('Montant payé (hors solde)')
+                //             ->numeric()
+                //             ->prefix('XOF')
+                //             ->default(0)
+                //             ->helperText('Montant payé immédiatement (en plus du solde client)'),
+                //     ])
+                //     ->collapsible(),
+
+                Repeater::make('payments')
+                    ->label(__('Payments'))
+                    ->addActionLabel(__('Add Payment'))
+                    ->collapsible()
+                    ->defaultItems(1)
+                    ->columns(3)
                     ->schema([
-                        Forms\Components\TextInput::make('amount_paid')
-                            ->label('Montant payé (hors solde)')
+                        Select::make('type')
+                            ->label(__('Payment Type'))
+                            ->native(false)
+                            ->options([
+                                'deposit' => __('Deposit/Balance'),
+                                'cash' => __('Cash'),
+                                'cheque' => __('Cheque'),
+                            ])
+                            ->required(),
+                        TextInput::make('amount')
+                            ->label(__('Amount'))
                             ->numeric()
-                            ->default(0)
                             ->minValue(0)
-                            ->reactive(),
-                        Forms\Components\Placeholder::make('amount_due_preview')
-                            ->label('Reste dû (crédit)')
-                            ->content(function (Get $get) {
-                                $customerId = $get('customer_id');
-                                $total = (float) $get('total');
-                                $amountPaid = (float) $get('amount_paid');
-                                $balance = $customerId ? (\App\Models\Customer::find($customerId)?->balance ?? 0) : 0;
-                                $reste = $total - min($balance, $total) - $amountPaid;
-                                return max(0, $reste) . ' XOF';
-                            }),
+                            ->default(0)
+                            ->prefix('XOF')
+                            ->required(),
+                        TextInput::make('note')
+                            ->label(__('Note')),
                     ])
-                    ->collapsible(),
+                    ->columnSpanFull(),
 
                 Hidden::make('store_id')
                     ->default(function () {
@@ -328,38 +561,65 @@ class SaleResource extends Resource
                 TextColumn::make('customer.name')
                     ->label(__('Customer'))
                     ->sortable()
-                    ->searchable(),
-
+                    ->searchable()
+                    ->formatStateUsing(fn($state) => $state ?: 'N/A'),
                 TextColumn::make('invoice_number')
                     ->label(__('Invoice'))
-                    ->searchable(),
-
+                    ->searchable()
+                    ->formatStateUsing(fn($state) => $state ?: 'N/A'),
                 TextColumn::make('sold_at')
                     ->label(__('Date'))
                     ->dateTime()
-                    ->sortable(),
-
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false),
                 TextColumn::make('subtotal')
                     ->label(__('Subtotal'))
                     ->money(currency: 'XOF', locale: 'fr')
                     ->sortable(),
-
                 TextColumn::make('discount')
                     ->label(__('Discount'))
                     ->money(currency: 'XOF', locale: 'fr')
                     ->sortable(),
-
                 TextColumn::make('total')
                     ->label(__('Total'))
                     ->money(currency: 'XOF', locale: 'fr')
                     ->sortable()
                     ->color('success'),
-
+                TextColumn::make('amount_due')
+                    ->label('Montant dû')
+                    ->badge()
+                    ->color(fn($state) => $state > 0 ? 'danger' : 'success')
+                    ->formatStateUsing(function ($state) {
+                        if ($state == 0) {
+                            return 'Aucun dû';
+                        }
+                        return number_format($state, 0, ',', ' ') . ' XOF';
+                    }),
+                TextColumn::make('status')
+                    ->label(__('Statut'))
+                    ->badge()
+                    ->color(fn($state) => match ($state) {
+                        'pending' => 'warning',
+                        'in_progress' => 'info',
+                        'completed' => 'success',
+                        'cancelled' => 'danger',
+                        default => 'gray',
+                    })
+                    ->formatStateUsing(fn($state) => Sale::getStatusOptions()[$state] ?? $state),
+                TextColumn::make('payment_status')
+                    ->badge()
+                    ->label(__('Paiement'))
+                    ->getStateUsing(function ($record) {
+                        return ($record->amount_due == 0) ? 'Payée' : 'Partiellement payée';
+                    })
+                    ->colors([
+                        'success' => fn($state) => $state === 'Payée',
+                        'warning' => fn($state) => $state === 'Partiellement payée',
+                    ]),
                 TextColumn::make('soldProducts_count')
                     ->label(__('Products'))
                     ->counts('soldProducts')
-                    ->sortable(),
-
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('created_at')
                     ->label(__('Created'))
                     ->dateTime()
@@ -367,6 +627,12 @@ class SaleResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('status')
+                    ->label(__('Status'))
+                    ->options(Sale::getStatusOptions())
+                    ->native(false)
+                    ->multiple(),
+
                 Tables\Filters\SelectFilter::make('customer')
                     ->relationship('customer', 'name')
                     ->label(__('Customer')),
@@ -391,6 +657,30 @@ class SaleResource extends Resource
                     })
             ])
             ->actions([
+                Tables\Actions\Action::make('put_on_hold')
+                    ->label(__('Mettre en attente'))
+                    ->icon('heroicon-o-pause')
+                    ->color('warning')
+                    ->visible(fn($record) => $record->status !== Sale::STATUS_PENDING)
+                    ->action(function ($record) {
+                        $record->update(['status' => Sale::STATUS_PENDING]);
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading(__('Mettre la vente en attente'))
+                    ->modalDescription(__('Cette vente sera mise en attente et pourra être reprise plus tard.'))
+                    ->modalSubmitActionLabel(__('Mettre en attente')),
+                Tables\Actions\Action::make('resume')
+                    ->label(__('Reprendre'))
+                    ->icon('heroicon-o-play')
+                    ->color('success')
+                    ->visible(fn($record) => $record->status === Sale::STATUS_PENDING)
+                    ->action(function ($record) {
+                        $record->update(['status' => Sale::STATUS_IN_PROGRESS]);
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading(__('Reprendre la vente'))
+                    ->modalDescription(__('Cette vente sera remise en cours.'))
+                    ->modalSubmitActionLabel(__('Reprendre')),
                 Tables\Actions\Action::make('print')
                     ->label(__('Print'))
                     ->icon('heroicon-o-printer')
@@ -412,6 +702,13 @@ class SaleResource extends Resource
     {
         return [
             \App\Filament\Resources\SaleResource\RelationManagers\SalePaymentsRelationManager::class,
+        ];
+    }
+
+    public static function getWidgets(): array
+    {
+        return [
+            \App\Filament\Resources\SaleResource\Widgets\PendingSalesWidget::class,
         ];
     }
 
@@ -437,11 +734,24 @@ class SaleResource extends Resource
         $quantity = (float) ($get('quantity') ?? 0);
         $price = (float) ($get('price') ?? 0);
         $discount = (float) ($get('discount') ?? 0);
-
+        $discountType = $get('discount_type') ?? 'amount';
         $subtotal = $quantity * $price;
-        $total = $subtotal - $discount;
-
+        $discountValue = $discountType === 'percent' ? ($subtotal * $discount / 100) : $discount;
+        $total = $subtotal - $discountValue;
         $set('total', number_format($total, 2, '.', ''));
+    }
+
+    /**
+     * Méthode de débogage pour vérifier les prix des ProductUnit
+     */
+    public static function debugProductUnitPrice($productId, $unitId): ?float
+    {
+        $productUnit = ProductUnit::where('product_id', $productId)
+            ->where('unit_id', $unitId)
+            ->where('store_id', Filament::getTenant()->id)
+            ->first();
+
+        return $productUnit ? $productUnit->price : null;
     }
 
     public static function calculateSaleTotal(Get $get, Set $set): void
@@ -454,10 +764,11 @@ class SaleResource extends Resource
             $quantity = (float) ($product['quantity'] ?? 0);
             $price = (float) ($product['price'] ?? 0);
             $discount = (float) ($product['discount'] ?? 0);
-
+            $discountType = $product['discount_type'] ?? 'amount';
             $productSubtotal = $quantity * $price;
+            $discountValue = $discountType === 'percent' ? ($productSubtotal * $discount / 100) : $discount;
             $subtotal += $productSubtotal;
-            $totalDiscount += $discount;
+            $totalDiscount += $discountValue;
         }
 
         $total = $subtotal - $totalDiscount;

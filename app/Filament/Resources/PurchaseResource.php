@@ -207,6 +207,7 @@ class PurchaseResource extends Resource
                                     ->numeric()
                                     ->required()
                                     ->minValue(1)
+                                    ->step(1)
                                     ->default(1)
                                     ->reactive()
                                     ->afterStateUpdated(fn(Get $get, Set $set) => self::calculateProductTotal($get, $set)),

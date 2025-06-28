@@ -91,6 +91,16 @@
         <div class="mb-6">
             <h3 class="text-lg font-semibold mb-3 text-gray-700">Stratégie de vente optimale</h3>
 
+            <!-- Message explicatif sur la logique -->
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <div class="text-yellow-800 font-medium">ℹ️ Logique de conversion</div>
+                <div class="text-yellow-700 text-sm">
+                    Le système utilise d'abord l'unité demandée si elle est disponible en stock.
+                    Si l'unité demandée n'est pas disponible ou insuffisante, il fait une conversion
+                    depuis les unités supérieures disponibles.
+                </div>
+            </div>
+
             @if ($sellingStrategy['can_sell'])
                 <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
                     <div class="text-green-800 font-medium">✅ Vente possible</div>
@@ -109,7 +119,19 @@
                 <div class="space-y-3">
                     @foreach ($sellingStrategy['strategy'] as $item)
                         <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                            <div class="font-medium text-gray-800">{{ $item['unit_name'] }}</div>
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="font-medium text-gray-800">{{ $item['unit_name'] }}</div>
+                                @if (isset($item['direct_use']) && $item['direct_use'])
+                                    <span
+                                        class="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                                        ✅ Utilisation directe
+                                    </span>
+                                @else
+                                    <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                                        🔄 Conversion nécessaire
+                                    </span>
+                                @endif
+                            </div>
                             <div class="text-sm text-gray-600">
                                 Quantité à utiliser: {{ $item['quantity'] }}<br>
                                 Quantité en unité de base: {{ $item['quantity_in_base'] }}<br>

@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\ProfilePage;
+use App\Filament\Pages\StockHistoryPage;
 use App\Models\Store;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -61,15 +62,15 @@ class AdminPanelProvider extends PanelProvider
             ->tenant(Store::class)
             ->databaseNotifications()
             ->navigationGroups([
-            NavigationGroup::make()
-                ->label(__('Products Management'))
-                ->icon('heroicon-s-cube'),
-            NavigationGroup::make()
-                ->label(__('Transactions'))
-                ->icon('heroicon-s-shopping-cart'),
-            NavigationGroup::make()
-                ->label(__('Business Entities'))
-                ->icon('heroicon-s-briefcase'),
+                NavigationGroup::make()
+                    ->label(__('Products Management'))
+                    ->icon('heroicon-s-cube'),
+                NavigationGroup::make()
+                    ->label(__('Transactions'))
+                    ->icon('heroicon-s-shopping-cart'),
+                NavigationGroup::make()
+                    ->label(__('Business Entities'))
+                    ->icon('heroicon-s-briefcase'),
                 NavigationGroup::make()
                     ->label(__('Settings'))
                     ->icon('heroicon-s-cog'),

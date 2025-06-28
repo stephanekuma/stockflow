@@ -35,6 +35,12 @@ class PurchasedProduct extends Model
      */
     protected $casts = [
         'data' => 'array',
+        'quantity' => 'integer',
+        'cost_price' => 'decimal:2',
+        'price' => 'decimal:2',
+        'discount' => 'decimal:2',
+        'vat' => 'decimal:2',
+        'total' => 'decimal:2',
     ];
 
     /**

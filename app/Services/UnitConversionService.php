@@ -5,12 +5,30 @@ namespace App\Services;
 use App\Models\ProductUnit;
 use App\Models\Unit;
 use App\Models\SoldProduct;
+use Filament\Facades\Filament;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 
 class UnitConversionService
 {
+    /**
+     * Get the current store ID
+     *
+     * @return int|null
+     */
+    private function getCurrentStoreId(): ?int
+    {
+        $tenant = Filament::getTenant();
+
+        if ($tenant) {
+            return $tenant->id;
+        }
+
+        // En dernier recours, utiliser le premier store disponible
+        return \App\Models\Store::first()?->id;
+    }
+
     /**
      * Sell products with automatic unit conversion and splitting.
      *
@@ -28,60 +46,99 @@ class UnitConversionService
         float $price,
         int $saleId
     ): array {
+        // S'assurer que les paramètres sont bien typés et arrondis à l'entier
+        $requestedQuantity = (int) round($requestedQuantity);
+        $price = (float) $price;
+
+        $storeId = $this->getCurrentStoreId();
+        if (!$storeId) {
+            throw new \Exception("Impossible de déterminer le store actuel.");
+        }
+
         $requestedUnit = Unit::findOrFail($requestedUnitId);
         $productUnits = ProductUnit::where('product_id', $productId)
-            ->where('store_id', Auth::user()->current_store_id)
+            ->where('store_id', $storeId)
             ->with(['unit', 'customBaseUnit'])
             ->get();
 
-        // Convert requested quantity to base unit
-        $requestedInBase = $requestedUnit->convertToBase($requestedQuantity);
-
         $soldProducts = [];
-        $remainingQuantity = $requestedInBase;
+        $remainingQuantity = $requestedQuantity;
 
-        // Sort product units by conversion factor (largest first for optimal splitting)
-        $sortedProductUnits = $productUnits->sortByDesc(function ($productUnit) {
-            return $productUnit->getEffectiveConversionFactor();
-        });
+        // 1. D'abord, essayer d'utiliser l'unité demandée si elle est disponible
+        $requestedProductUnit = $productUnits->where('unit_id', $requestedUnitId)->first();
 
-        foreach ($sortedProductUnits as $productUnit) {
-            if ($remainingQuantity <= 0) {
-                break;
-            }
-
-            $availableInBase = $productUnit->getAvailableQuantityInBase();
-            if ($availableInBase <= 0) {
-                continue;
-            }
-
-            $quantityToUse = min($remainingQuantity, $availableInBase);
-            $quantityInUnit = $productUnit->convertFromBase($quantityToUse);
-
-            // Create sold product record
+        if ($requestedProductUnit && $requestedProductUnit->quantity >= $remainingQuantity) {
+            // L'unité demandée a suffisamment de stock, l'utiliser directement
             $soldProduct = SoldProduct::create([
                 'sale_id' => $saleId,
-                'product_unit_id' => $productUnit->id,
-                'quantity' => $quantityInUnit,
+                'product_unit_id' => $requestedProductUnit->id,
+                'quantity' => $remainingQuantity,
                 'price' => $price,
-                'total' => $quantityInUnit * $price,
+                'total' => $remainingQuantity * $price,
                 'data' => [
                     'original_requested_quantity' => $requestedQuantity,
                     'original_requested_unit' => $requestedUnit->name,
-                    'converted_from_base' => $quantityToUse,
-                    'unit_conversion_applied' => true,
+                    'unit_conversion_applied' => false, // Pas de conversion nécessaire
                 ],
             ]);
 
             $soldProducts[] = $soldProduct;
+            $requestedProductUnit->decrement('quantity', $remainingQuantity);
+            $remainingQuantity = 0;
+        } else {
+            // 2. Si l'unité demandée n'est pas disponible ou insuffisante, faire la conversion
+            // Convert requested quantity to base unit
+            $requestedInBase = $requestedUnit->convertToBase($requestedQuantity);
+            $remainingQuantityInBase = $requestedInBase;
 
-            // Update stock
-            $productUnit->decrement('quantity', $quantityInUnit);
-            $remainingQuantity -= $quantityToUse;
-        }
+            // Sort product units by conversion factor (largest first for optimal splitting)
+            $sortedProductUnits = $productUnits->sortByDesc(function ($productUnit) {
+                return $productUnit->getEffectiveConversionFactor();
+            });
 
-        if ($remainingQuantity > 0) {
-            throw new \Exception("Stock insuffisant. Il manque " . $remainingQuantity . " unités de base.");
+            foreach ($sortedProductUnits as $productUnit) {
+                if ($remainingQuantityInBase <= 0) {
+                    break;
+                }
+
+                $availableInBase = $productUnit->getAvailableQuantityInBase();
+                if ($availableInBase <= 0) {
+                    continue;
+                }
+
+                $quantityToUse = min($remainingQuantityInBase, $availableInBase);
+                $quantityInUnit = (int) round($productUnit->convertFromBase($quantityToUse));
+
+                // Vérifier que la quantité est positive
+                if ($quantityInUnit <= 0) {
+                    continue;
+                }
+
+                // Create sold product record
+                $soldProduct = SoldProduct::create([
+                    'sale_id' => $saleId,
+                    'product_unit_id' => $productUnit->id,
+                    'quantity' => $quantityInUnit,
+                    'price' => $price,
+                    'total' => $quantityInUnit * $price,
+                    'data' => [
+                        'original_requested_quantity' => $requestedQuantity,
+                        'original_requested_unit' => $requestedUnit->name,
+                        'converted_from_base' => $quantityToUse,
+                        'unit_conversion_applied' => true,
+                    ],
+                ]);
+
+                $soldProducts[] = $soldProduct;
+
+                // Update stock
+                $productUnit->decrement('quantity', $quantityInUnit);
+                $remainingQuantityInBase -= $quantityToUse;
+            }
+
+            if ($remainingQuantityInBase > 0) {
+                throw new \Exception("Stock insuffisant. Il manque " . (int) round($remainingQuantityInBase) . " unités de base.");
+            }
         }
 
         return $soldProducts;
@@ -100,51 +157,89 @@ class UnitConversionService
         int $requestedUnitId,
         float $requestedQuantity
     ): array {
+        // S'assurer que la quantité est bien un entier
+        $requestedQuantity = (int) round($requestedQuantity);
+
+        $storeId = $this->getCurrentStoreId();
+        if (!$storeId) {
+            throw new \Exception("Impossible de déterminer le store actuel.");
+        }
+
         $requestedUnit = Unit::findOrFail($requestedUnitId);
         $productUnits = ProductUnit::where('product_id', $productId)
-            ->where('store_id', Auth::user()->current_store_id)
+            ->where('store_id', $storeId)
             ->with(['unit', 'customBaseUnit'])
             ->get();
 
-        $requestedInBase = $requestedUnit->convertToBase($requestedQuantity);
         $strategy = [];
-        $remainingQuantity = $requestedInBase;
+        $canSell = false;
+        $missingQuantity = 0;
 
-        // Sort by conversion factor (largest first)
-        $sortedProductUnits = $productUnits->sortByDesc(function ($productUnit) {
-            return $productUnit->getEffectiveConversionFactor();
-        });
+        // 1. D'abord, vérifier si l'unité demandée est disponible
+        $requestedProductUnit = $productUnits->where('unit_id', $requestedUnitId)->first();
 
-        foreach ($sortedProductUnits as $productUnit) {
-            if ($remainingQuantity <= 0) {
-                break;
-            }
-
-            $availableInBase = $productUnit->getAvailableQuantityInBase();
-            if ($availableInBase <= 0) {
-                continue;
-            }
-
-            $quantityToUse = min($remainingQuantity, $availableInBase);
-            $quantityInUnit = $productUnit->convertFromBase($quantityToUse);
-
+        if ($requestedProductUnit && $requestedProductUnit->quantity >= $requestedQuantity) {
+            // L'unité demandée a suffisamment de stock
             $strategy[] = [
-                'product_unit_id' => $productUnit->id,
-                'unit_name' => $productUnit->unit->name,
-                'quantity' => $quantityInUnit,
-                'quantity_in_base' => $quantityToUse,
-                'available_stock' => $productUnit->quantity,
-                'conversion_factor' => $productUnit->getEffectiveConversionFactor(),
+                'product_unit_id' => $requestedProductUnit->id,
+                'unit_name' => $requestedProductUnit->unit->name,
+                'quantity' => $requestedQuantity,
+                'quantity_in_base' => $requestedProductUnit->convertToBase($requestedQuantity),
+                'available_stock' => $requestedProductUnit->quantity,
+                'conversion_factor' => $requestedProductUnit->getEffectiveConversionFactor(),
+                'direct_use' => true, // Utilisation directe, pas de conversion
             ];
+            $canSell = true;
+        } else {
+            // 2. Si l'unité demandée n'est pas disponible ou insuffisante, calculer la conversion
+            $requestedInBase = $requestedUnit->convertToBase($requestedQuantity);
+            $remainingQuantityInBase = $requestedInBase;
 
-            $remainingQuantity -= $quantityToUse;
+            // Sort by conversion factor (largest first)
+            $sortedProductUnits = $productUnits->sortByDesc(function ($productUnit) {
+                return $productUnit->getEffectiveConversionFactor();
+            });
+
+            foreach ($sortedProductUnits as $productUnit) {
+                if ($remainingQuantityInBase <= 0) {
+                    break;
+                }
+
+                $availableInBase = $productUnit->getAvailableQuantityInBase();
+                if ($availableInBase <= 0) {
+                    continue;
+                }
+
+                $quantityToUse = min($remainingQuantityInBase, $availableInBase);
+                $quantityInUnit = (int) round($productUnit->convertFromBase($quantityToUse));
+
+                // Vérifier que la quantité est positive
+                if ($quantityInUnit <= 0) {
+                    continue;
+                }
+
+                $strategy[] = [
+                    'product_unit_id' => $productUnit->id,
+                    'unit_name' => $productUnit->unit->name,
+                    'quantity' => $quantityInUnit,
+                    'quantity_in_base' => $quantityToUse,
+                    'available_stock' => $productUnit->quantity,
+                    'conversion_factor' => $productUnit->getEffectiveConversionFactor(),
+                    'direct_use' => false, // Conversion nécessaire
+                ];
+
+                $remainingQuantityInBase -= $quantityToUse;
+            }
+
+            $canSell = $remainingQuantityInBase <= 0;
+            $missingQuantity = (int) round($remainingQuantityInBase);
         }
 
         return [
             'strategy' => $strategy,
-            'can_sell' => $remainingQuantity <= 0,
-            'missing_quantity' => $remainingQuantity,
-            'requested_in_base' => $requestedInBase,
+            'can_sell' => $canSell,
+            'missing_quantity' => $missingQuantity,
+            'requested_in_base' => $requestedUnit->convertToBase($requestedQuantity),
         ];
     }
 
@@ -155,25 +250,33 @@ class UnitConversionService
      * @param float $quantity
      * @param int $fromUnitId
      * @param int $toUnitId
-     * @return float
+     * @return int
      */
     public function convertQuantity(
         int $productId,
         float $quantity,
         int $fromUnitId,
         int $toUnitId
-    ): float {
+    ): int {
+        // S'assurer que la quantité est bien un entier
+        $quantity = (int) round($quantity);
+
+        $storeId = $this->getCurrentStoreId();
+        if (!$storeId) {
+            throw new \Exception("Impossible de déterminer le store actuel.");
+        }
+
         $fromProductUnit = ProductUnit::where('product_id', $productId)
             ->where('unit_id', $fromUnitId)
-            ->where('store_id', Auth::user()->current_store_id)
+            ->where('store_id', $storeId)
             ->firstOrFail();
 
         $toProductUnit = ProductUnit::where('product_id', $productId)
             ->where('unit_id', $toUnitId)
-            ->where('store_id', Auth::user()->current_store_id)
+            ->where('store_id', $storeId)
             ->firstOrFail();
 
-        return $fromProductUnit->convertTo($quantity, $toProductUnit);
+        return (int) round($fromProductUnit->convertTo($quantity, $toProductUnit));
     }
 
     /**
@@ -184,8 +287,13 @@ class UnitConversionService
      */
     public function getAvailableUnitsForProduct(int $productId): Collection
     {
+        $storeId = $this->getCurrentStoreId();
+        if (!$storeId) {
+            return collect();
+        }
+
         return ProductUnit::where('product_id', $productId)
-            ->where('store_id', Auth::user()->current_store_id)
+            ->where('store_id', $storeId)
             ->where('quantity', '>', 0)
             ->with(['unit', 'customBaseUnit'])
             ->get()
@@ -212,11 +320,19 @@ class UnitConversionService
      */
     public function hasEnoughStock(int $productId, float $quantity, int $unitId): bool
     {
+        // S'assurer que la quantité est bien un entier
+        $quantity = (int) round($quantity);
+
+        $storeId = $this->getCurrentStoreId();
+        if (!$storeId) {
+            return false;
+        }
+
         $requestedUnit = Unit::findOrFail($unitId);
         $requestedInBase = $requestedUnit->convertToBase($quantity);
 
         $totalAvailableInBase = ProductUnit::where('product_id', $productId)
-            ->where('store_id', Auth::user()->current_store_id)
+            ->where('store_id', $storeId)
             ->get()
             ->sum(function ($productUnit) {
                 return $productUnit->getAvailableQuantityInBase();

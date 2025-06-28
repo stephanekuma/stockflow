@@ -30,7 +30,10 @@ class ProductUnitsRelationManager extends RelationManager
             Forms\Components\TextInput::make('quantity')
                 ->label(__('Quantity'))
                 ->numeric()
-                ->required(),
+                ->required()
+                ->minValue(0)
+                ->step(1)
+                ->default(0),
             Forms\Components\TextInput::make('low_stock_threshold')
                 ->label(__('Seuil d\'alerte'))
                 ->numeric()

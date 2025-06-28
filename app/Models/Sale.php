@@ -27,6 +27,7 @@ class Sale extends Model
         'discount',
         'data',
         'notes',
+        'status',
     ];
 
     /**
@@ -41,6 +42,27 @@ class Sale extends Model
         'total' => 'decimal:2',
         'discount' => 'decimal:2',
     ];
+
+    /**
+     * Status constants
+     */
+    const STATUS_PENDING = 'pending';
+    const STATUS_IN_PROGRESS = 'in_progress';
+    const STATUS_COMPLETED = 'completed';
+    const STATUS_CANCELLED = 'cancelled';
+
+    /**
+     * Get status options
+     */
+    public static function getStatusOptions(): array
+    {
+        return [
+            self::STATUS_PENDING => 'En attente',
+            self::STATUS_IN_PROGRESS => 'En cours',
+            self::STATUS_COMPLETED => 'Terminée',
+            self::STATUS_CANCELLED => 'Annulée',
+        ];
+    }
 
     /**
      * Get the store that owns the Sale

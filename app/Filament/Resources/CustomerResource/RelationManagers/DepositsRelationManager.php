@@ -8,6 +8,7 @@ use Filament\Tables;
 use Filament\Forms\Form;
 use Filament\Tables\Table;
 use App\Models\SalePayment;
+use Filament\Facades\Filament;
 
 class DepositsRelationManager extends RelationManager
 {
@@ -17,6 +18,8 @@ class DepositsRelationManager extends RelationManager
     public function form(Form $form): Form
     {
         return $form->schema([
+            Forms\Components\Hidden::make('store_id')
+                ->default(Filament::getTenant()->id),
             Forms\Components\TextInput::make('amount')
                 ->label('Montant')
                 ->numeric()
@@ -31,7 +34,7 @@ class DepositsRelationManager extends RelationManager
         return $table->columns([
             Tables\Columns\TextColumn::make('amount')->label('Montant')->money('XOF'),
             Tables\Columns\TextColumn::make('note')->label('Note'),
-            Tables\Columns\TextColumn::make('user.name')->label('Utilisateur'),
+            // Tables\Columns\TextColumn::make('user.name')->label('Utilisateur'),
             Tables\Columns\TextColumn::make('created_at')->label('Date')->dateTime(),
         ])->headerActions([
             Tables\Actions\CreateAction::make(),
@@ -39,6 +42,12 @@ class DepositsRelationManager extends RelationManager
             Tables\Actions\EditAction::make(),
             Tables\Actions\DeleteAction::make(),
         ]);
+    }
+
+    public function mutateFormDataBeforeCreate(array $data): array
+    {
+        $data['store_id'] = \Filament\Facades\Filament::getTenant()->id;
+        return $data;
     }
 }
 

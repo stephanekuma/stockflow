@@ -34,7 +34,7 @@ class SoldProduct extends Model
      */
     protected $casts = [
         'data' => 'array',
-        'quantity' => 'decimal:2',
+        'quantity' => 'integer',
         'price' => 'decimal:2',
         'total' => 'decimal:2',
         'discount' => 'decimal:2',

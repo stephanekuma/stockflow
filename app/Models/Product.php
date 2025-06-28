@@ -184,6 +184,18 @@ class Product extends Model
         return $this->hasMany(ProductUnit::class);
     }
 
+    public function stockHistories()
+    {
+        return $this->hasManyThrough(
+            \App\Models\StockHistory::class,
+            \App\Models\ProductUnit::class,
+            'product_id', // Foreign key on ProductUnit
+            'product_unit_id', // Foreign key on StockHistory
+            'id', // Local key on Product
+            'id' // Local key on ProductUnit
+        );
+    }
+
     public function resolveRouteBinding($value, $field = null)
     {
         return $this->where($field ?? $this->getRouteKeyName(), $value)->with('units')->firstOrFail();

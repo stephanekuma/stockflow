@@ -39,6 +39,8 @@ class EditSale extends EditRecord
             } else {
                 $productData['type'] = 'product';
                 $productData['product_unit_id'] = $soldProduct->product_unit_id;
+                $productData['product_id'] = $soldProduct->productUnit?->product_id;
+                $productData['unit_id'] = $soldProduct->productUnit?->unit_id;
             }
 
             $soldProducts[] = $productData;
