@@ -25,7 +25,8 @@ class ProductUnitsRelationManager extends RelationManager
                 ->searchable()
                 ->label(__('Unit'))
                 ->relationship('unit', 'name')
-                ->required(),
+                ->required()
+                ->reactive(),
             Forms\Components\TextInput::make('quantity')
                 ->label(__('Quantity'))
                 ->numeric()
@@ -44,6 +45,36 @@ class ProductUnitsRelationManager extends RelationManager
                 ->label(__('Price'))
                 ->numeric()
                 ->required(),
+
+            // Section pour les conversions personnalisées
+            Forms\Components\Section::make(__('Custom Unit Conversion'))
+                ->description(__('Override default unit conversion for this specific product'))
+                ->collapsible()
+                ->collapsed()
+                ->schema([
+                    Forms\Components\Toggle::make('use_custom_conversion')
+                        ->label(__('Use Custom Conversion'))
+                        ->helperText(__('Check to override the default unit conversion'))
+                        ->reactive(),
+
+                    Forms\Components\Select::make('custom_base_unit_id')
+                        ->label(__('Custom Base Unit'))
+                        ->relationship('customBaseUnit', 'name')
+                        ->searchable()
+                        ->preload()
+                        ->visible(fn(Forms\Get $get) => $get('use_custom_conversion'))
+                        ->required(fn(Forms\Get $get) => $get('use_custom_conversion'))
+                        ->helperText(__('Select a different base unit for this product')),
+
+                    Forms\Components\TextInput::make('custom_conversion_factor')
+                        ->label(__('Custom Conversion Factor'))
+                        ->numeric()
+                        ->step(0.0001)
+                        ->minValue(0.0001)
+                        ->visible(fn(Forms\Get $get) => $get('use_custom_conversion'))
+                        ->required(fn(Forms\Get $get) => $get('use_custom_conversion'))
+                        ->helperText(__('How many base units equal one of this unit for this product?')),
+                ]),
         ]);
     }
 
@@ -54,6 +85,13 @@ class ProductUnitsRelationManager extends RelationManager
             Tables\Columns\TextColumn::make('quantity')->label(__('Quantity')),
             Tables\Columns\TextColumn::make('cost_price')->label(__('Cost Price')),
             Tables\Columns\TextColumn::make('price')->label(__('Price')),
+            Tables\Columns\IconColumn::make('custom_conversion_factor')
+                ->label(__('Custom Conversion'))
+                ->boolean()
+                ->getStateUsing(fn($record) => $record->custom_conversion_factor !== null)
+                ->tooltip(fn($record) => $record->custom_conversion_factor !== null
+                    ? "Custom: {$record->custom_conversion_factor}"
+                    : "Default: {$record->unit->conversion_factor}"),
         ])->headerActions([
             Tables\Actions\CreateAction::make(),
         ])->actions([

@@ -8,6 +8,7 @@ use Filament\Tables;
 use Filament\Forms\Form;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
+use Filament\Facades\Filament;
 
 class SalePaymentsRelationManager extends RelationManager
 {
@@ -17,6 +18,8 @@ class SalePaymentsRelationManager extends RelationManager
     public function form(Form $form): Form
     {
         return $form->schema([
+            Forms\Components\Hidden::make('store_id')
+                ->default(fn() => Filament::getTenant()->id),
             Forms\Components\TextInput::make('amount')
                 ->label('Montant')
                 ->numeric()

@@ -60,6 +60,16 @@ class SaleResource extends Resource
     {
         return $form
             ->schema([
+                Forms\Components\Section::make(__('Informations client'))
+                    ->schema([
+                        Forms\Components\Placeholder::make('customer_balance')
+                            ->label('Solde client disponible')
+                            ->content(
+                                fn(Get $get) => ($customerId = $get('customer_id'))
+                                    ? (\App\Models\Customer::find($customerId)?->balance ?? 0) . ' XOF'
+                                    : 'Sélectionnez un client'
+                            ),
+                    ]),
                 Forms\Components\Section::make(__('Sale Information'))
                     ->schema([
                         Forms\Components\Grid::make(3)
@@ -81,7 +91,6 @@ class SaleResource extends Resource
                                     ->createOptionModalHeading(__('Create New Customer'))
                                     ->live()
                                     ->afterStateUpdated(fn(Set $set) => $set('invoice_number', Sale::generateInvoiceNumber())),
-
                                 TextInput::make('invoice_number')
                                     ->label(__('Invoice Number'))
                                     ->maxLength(255)
@@ -91,7 +100,6 @@ class SaleResource extends Resource
                                     ->disabled()
                                     ->dehydrated()
                                     ->default(Sale::generateInvoiceNumber()),
-
                                 DateTimePicker::make('sold_at')
                                     ->label(__('Sale Date'))
                                     ->default(now())
@@ -285,6 +293,27 @@ class SaleResource extends Resource
                     ->collapsible()
                     ->afterStateHydrated(fn(Get $get, Set $set) => SaleResource::calculateSaleTotal($get, $set)),
 
+                Forms\Components\Section::make(__('Paiement'))
+                    ->schema([
+                        Forms\Components\TextInput::make('amount_paid')
+                            ->label('Montant payé (hors solde)')
+                            ->numeric()
+                            ->default(0)
+                            ->minValue(0)
+                            ->reactive(),
+                        Forms\Components\Placeholder::make('amount_due_preview')
+                            ->label('Reste dû (crédit)')
+                            ->content(function (Get $get) {
+                                $customerId = $get('customer_id');
+                                $total = (float) $get('total');
+                                $amountPaid = (float) $get('amount_paid');
+                                $balance = $customerId ? (\App\Models\Customer::find($customerId)?->balance ?? 0) : 0;
+                                $reste = $total - min($balance, $total) - $amountPaid;
+                                return max(0, $reste) . ' XOF';
+                            }),
+                    ])
+                    ->collapsible(),
+
                 Hidden::make('store_id')
                     ->default(function () {
                         return Filament::getTenant()->id;
@@ -454,20 +483,31 @@ class SaleResource extends Resource
 
     protected function afterCreate(): void
     {
-        $sale = $this->record;
-        $customer = Customer::find($sale->customer_id);
+        $sale = $this->getRecord();
+        $customer = \App\Models\Customer::find($sale->customer_id);
+        $amountPaid = (float) ($this->data['amount_paid'] ?? 0);
         if ($customer) {
             $balance = $customer->balance;
             $toPay = $sale->total;
             $usedBalance = min($balance, $toPay);
             if ($usedBalance > 0) {
-                // Enregistre un paiement automatique depuis le solde
-                SalePayment::create([
+                // Paiement automatique via solde
+                \App\Models\SalePayment::create([
                     'sale_id' => $sale->id,
                     'customer_id' => $customer->id,
                     'amount' => $usedBalance,
-                    'user_id' => Auth::id(),
+                    'user_id' => \Illuminate\Support\Facades\Auth::id(),
                     'note' => 'Paiement automatique via solde client',
+                ]);
+            }
+            if ($amountPaid > 0) {
+                // Paiement immédiat saisi par l'utilisateur
+                \App\Models\SalePayment::create([
+                    'sale_id' => $sale->id,
+                    'customer_id' => $customer->id,
+                    'amount' => $amountPaid,
+                    'user_id' => \Illuminate\Support\Facades\Auth::id(),
+                    'note' => 'Paiement immédiat lors de la vente',
                 ]);
             }
             // Le reste dû est géré par l'attribut amount_due du modèle Sale

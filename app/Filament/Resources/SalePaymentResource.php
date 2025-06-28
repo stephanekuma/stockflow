@@ -15,6 +15,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\Auth;
 
 class SalePaymentResource extends Resource
 {
@@ -30,12 +31,12 @@ class SalePaymentResource extends Resource
 
     public static function getModelLabel(): string
     {
-        return __('Paiement vente');
+        return __('Sale payment');
     }
 
     public static function getPluralModelLabel(): string
     {
-        return __('Paiements ventes');
+        return __('Sales payments');
     }
 
     public static function form(Form $form): Form
@@ -61,7 +62,7 @@ class SalePaymentResource extends Resource
                 Forms\Components\Textarea::make('note')
                     ->label(__('Note')),
                 Forms\Components\Hidden::make('user_id')
-                    ->default(fn() => auth()->id()),
+                    ->default(fn() => Auth::id()),
             ]);
     }
 
@@ -110,7 +111,7 @@ class SalePaymentResource extends Resource
     {
         return [
             'index' => Pages\ListSalePayments::route('/'),
-            'create' => Pages\CreateSalePayment::route('/create'),
+            // 'create' => Pages\CreateSalePayment::route('/create'),
             'view' => Pages\ViewSalePayment::route('/{record}'),
             'edit' => Pages\EditSalePayment::route('/{record}/edit'),
         ];

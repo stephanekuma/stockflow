@@ -23,7 +23,7 @@ return new class extends Migration
                 ->constrained('units')
                 ->onDelete('cascade');
             $table->integer('quantity');
-            $table->integer('low_stock_threshold')->nullable()->default(0);
+            // $table->integer('low_stock_threshold')->nullable()->default(0);
             $table->decimal('cost_price', 10, 2)->nullable();
             $table->decimal('price', 10, 2)->nullable();
             $table->decimal('discount', 10, 2)->nullable();

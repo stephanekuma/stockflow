@@ -24,6 +24,8 @@ class ProductUnit extends Model
         'cost_price',
         'price',
         'quantity',
+        'custom_conversion_factor',
+        'custom_base_unit_id',
         'discount',
         'vat',
         'total',
@@ -38,6 +40,7 @@ class ProductUnit extends Model
      */
     protected $casts = [
         'data' => 'array',
+        'custom_conversion_factor' => 'decimal:4',
     ];
 
     /**
@@ -71,6 +74,16 @@ class ProductUnit extends Model
     }
 
     /**
+     * Get the custom base unit for this product unit.
+     *
+     * @return BelongsTo
+     */
+    public function customBaseUnit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class, 'custom_base_unit_id');
+    }
+
+    /**
      * The packs that belong to the ProductUnit
      *
      * @return BelongsToMany
@@ -79,5 +92,138 @@ class ProductUnit extends Model
     {
         return $this->belongsToMany(Pack::class)
             ->withPivot('quantity');
+    }
+
+    /**
+     * Get the effective conversion factor for this product unit.
+     *
+     * @return float
+     */
+    public function getEffectiveConversionFactor(): float
+    {
+        // Si une conversion personnalisée est définie, l'utiliser
+        if ($this->custom_conversion_factor !== null) {
+            return $this->custom_conversion_factor;
+        }
+
+        // Sinon, utiliser la conversion de l'unité
+        return $this->unit->conversion_factor;
+    }
+
+    /**
+     * Get the effective base unit for this product unit.
+     *
+     * @return Unit|null
+     */
+    public function getEffectiveBaseUnit(): ?Unit
+    {
+        // Si une unité de base personnalisée est définie, l'utiliser
+        if ($this->custom_base_unit_id) {
+            return $this->customBaseUnit;
+        }
+
+        // Sinon, utiliser l'unité de base de l'unité
+        return $this->unit->baseUnit;
+    }
+
+    /**
+     * Convert quantity from this product unit to base unit.
+     *
+     * @param float $quantity
+     * @return float
+     */
+    public function convertToBase(float $quantity): float
+    {
+        $baseUnit = $this->getEffectiveBaseUnit();
+
+        if (!$baseUnit || $this->unit->id === $baseUnit->id) {
+            return $quantity;
+        }
+
+        return $quantity * $this->getEffectiveConversionFactor();
+    }
+
+    /**
+     * Convert quantity from base unit to this product unit.
+     *
+     * @param float $quantity
+     * @return float
+     */
+    public function convertFromBase(float $quantity): float
+    {
+        $baseUnit = $this->getEffectiveBaseUnit();
+
+        if (!$baseUnit || $this->unit->id === $baseUnit->id) {
+            return $quantity;
+        }
+
+        return $quantity / $this->getEffectiveConversionFactor();
+    }
+
+    /**
+     * Convert quantity from this product unit to another product unit.
+     *
+     * @param float $quantity
+     * @param ProductUnit $targetProductUnit
+     * @return float
+     */
+    public function convertTo(float $quantity, ProductUnit $targetProductUnit): float
+    {
+        if ($this->id === $targetProductUnit->id) {
+            return $quantity;
+        }
+
+        // Convert to base first, then to target
+        $baseQuantity = $this->convertToBase($quantity);
+        return $targetProductUnit->convertFromBase($baseQuantity);
+    }
+
+    /**
+     * Check if this product unit can be converted to another product unit.
+     *
+     * @param ProductUnit $targetProductUnit
+     * @return bool
+     */
+    public function canConvertTo(ProductUnit $targetProductUnit): bool
+    {
+        $thisBaseUnit = $this->getEffectiveBaseUnit();
+        $targetBaseUnit = $targetProductUnit->getEffectiveBaseUnit();
+
+        if (!$thisBaseUnit || !$targetBaseUnit) {
+            return false;
+        }
+
+        return $thisBaseUnit->id === $targetBaseUnit->id;
+    }
+
+    /**
+     * Get available quantity in base unit.
+     *
+     * @return float
+     */
+    public function getAvailableQuantityInBase(): float
+    {
+        return $this->convertToBase($this->quantity);
+    }
+
+    /**
+     * Check if there's enough stock for the requested quantity.
+     *
+     * @param float $requestedQuantity
+     * @param Unit $requestedUnit
+     * @return bool
+     */
+    public function hasEnoughStock(float $requestedQuantity, Unit $requestedUnit): bool
+    {
+        // Convert requested quantity to base unit
+        $requestedUnitModel = Unit::find($requestedUnit->id);
+        if (!$requestedUnitModel) {
+            return false;
+        }
+
+        $requestedInBase = $requestedUnitModel->convertToBase($requestedQuantity);
+        $availableInBase = $this->getAvailableQuantityInBase();
+
+        return $availableInBase >= $requestedInBase;
     }
 }

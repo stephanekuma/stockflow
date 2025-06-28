@@ -57,6 +57,7 @@ class CreateSale extends CreateRecord
 
                         // Historique de stock
                         StockHistory::create([
+                            'store_id' => $sale->store_id ?? $productUnit->store_id,
                             'product_unit_id' => $productUnit->id,
                             'user_id' => Auth::id() ?? null,
                             'type' => 'vente',
@@ -69,7 +70,6 @@ class CreateSale extends CreateRecord
                         // Vérifier le seuil de stock
                         if ($productUnit->quantity <= ($productUnit->low_stock_threshold ?? 0)) {
                             Log::warning('Stock bas pour le produit: ' . ($productUnit->product->name ?? 'N/A') . ' (Unité: ' . ($productUnit->unit->name ?? '') . '). Stock restant: ' . $productUnit->quantity);
-                            // Ici, on pourrait déclencher une notification Filament ou Laravel
                         }
                     }
                 } elseif ($productData['type'] === 'pack' && isset($productData['pack_id'])) {
@@ -98,6 +98,7 @@ class CreateSale extends CreateRecord
 
                                 // Historique de stock pour chaque unité du pack
                                 StockHistory::create([
+                                    'store_id' => $sale->store_id ?? $productUnit->store_id,
                                     'product_unit_id' => $productUnit->id,
                                     'user_id' => Auth::id() ?? null,
                                     'type' => 'vente (pack)',
@@ -127,5 +128,8 @@ class CreateSale extends CreateRecord
 
         // Calculer les totaux
         $sale->calculateTotals();
+        // Paiements (solde + paiement immédiat)
+        $amountPaid = (float) ($this->data['amount_paid'] ?? 0);
+        $sale->handlePayments($amountPaid);
     }
 }

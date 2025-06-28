@@ -130,4 +130,37 @@ class Sale extends Model
     {
         return max(0, $this->total - $this->total_paid);
     }
+
+    /**
+     * Gère les paiements lors d'une vente (solde, paiement immédiat, crédit)
+     */
+    public function handlePayments(float $amountPaid = 0): void
+    {
+        $customer = $this->customer;
+        if ($customer) {
+            $balance = $customer->balance;
+            $toPay = $this->total;
+            $usedBalance = min($balance, $toPay);
+            if ($usedBalance > 0) {
+                \App\Models\SalePayment::create([
+                    'store_id' => $this->store_id,
+                    'sale_id' => $this->id,
+                    'customer_id' => $customer->id,
+                    'amount' => $usedBalance,
+                    'user_id' => \Illuminate\Support\Facades\Auth::id(),
+                    'note' => 'Paiement automatique via solde client',
+                ]);
+            }
+            if ($amountPaid > 0) {
+                \App\Models\SalePayment::create([
+                    'store_id' => $this->store_id,
+                    'sale_id' => $this->id,
+                    'customer_id' => $customer->id,
+                    'amount' => $amountPaid,
+                    'user_id' => \Illuminate\Support\Facades\Auth::id(),
+                    'note' => 'Paiement immédiat lors de la vente',
+                ]);
+            }
+        }
+    }
 }

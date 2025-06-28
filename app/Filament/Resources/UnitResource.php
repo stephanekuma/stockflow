@@ -48,9 +48,6 @@ class UnitResource extends Resource
     {
         return $table
             ->columns([
-                // Tables\Columns\TextColumn::make('store.name')
-                //     ->numeric()
-                //     ->sortable(),
                 Tables\Columns\TextColumn::make('name')
                     ->label(__('Name'))
                     ->sortable()
@@ -59,6 +56,23 @@ class UnitResource extends Resource
                     ->label(__('Short Unit'))
                     ->sortable()
                     ->searchable(),
+                Tables\Columns\IconColumn::make('is_base_unit')
+                    ->label(__('Base Unit'))
+                    ->boolean()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('conversion_factor')
+                    ->label(__('Conversion Factor'))
+                    ->numeric(
+                        decimalPlaces: 4,
+                        decimalSeparator: '.',
+                        thousandsSeparator: ',',
+                    )
+                    ->sortable()
+                    ->visible(fn($record) => !$record?->is_base_unit),
+                Tables\Columns\TextColumn::make('baseUnit.name')
+                    ->label(__('Base Unit'))
+                    ->sortable()
+                    ->visible(fn($record) => !$record?->is_base_unit),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('Created At'))
                     ->dateTime()
@@ -95,17 +109,14 @@ class UnitResource extends Resource
     {
         return [
             'index' => Pages\ListUnits::route('/'),
-            // 'create' => Pages\CreateUnit::route('/create'),
-            // 'edit' => Pages\EditUnit::route('/{record}/edit'),
+            'create' => Pages\CreateUnit::route('/create'),
+            'edit' => Pages\EditUnit::route('/{record}/edit'),
         ];
     }
 
     public static function getFormSchema(): array
     {
         return [
-            // Forms\Components\Select::make('store_id')
-            //     ->relationship('store', 'name')
-            //     ->required(),
             Forms\Components\TextInput::make('name')
                 ->label(__('Name'))
                 ->required()
@@ -116,6 +127,27 @@ class UnitResource extends Resource
                 ->required()
                 ->maxLength(255)
                 ->helperText(__('Units in short form kg, gal, l, etc')),
+            Forms\Components\Toggle::make('is_base_unit')
+                ->label(__('Is Base Unit'))
+                ->helperText(__('Check if this is a base unit (e.g., piece, gram, milliliter)'))
+                ->reactive(),
+            Forms\Components\Select::make('base_unit_id')
+                ->label(__('Base Unit'))
+                ->relationship('baseUnit', 'name')
+                ->searchable()
+                ->preload()
+                ->visible(fn(Forms\Get $get) => !$get('is_base_unit'))
+                ->required(fn(Forms\Get $get) => !$get('is_base_unit'))
+                ->helperText(__('Select the base unit for conversion (e.g., if this is "Carton", select "Piece" as base)')),
+            Forms\Components\TextInput::make('conversion_factor')
+                ->label(__('Conversion Factor'))
+                ->numeric()
+                ->step(0.0001)
+                ->minValue(0.0001)
+                ->visible(fn(Forms\Get $get) => !$get('is_base_unit'))
+                ->required(fn(Forms\Get $get) => !$get('is_base_unit'))
+                ->helperText(__('How many base units equal one of this unit? (e.g., 20 pieces = 1 carton)'))
+                ->default(1),
             Forms\Components\KeyValue::make('data')
                 ->label(__('Extra Details'))
                 ->columnSpanFull(),

@@ -73,14 +73,12 @@ class Customer extends Model
     }
 
     /**
-     * Solde disponible du client (dépôts - achats réglés)
+     * Solde disponible du client (dépôts - paiements de ventes)
      */
     public function getBalanceAttribute()
     {
         $deposits = $this->deposits()->sum('amount');
-        $salesPaid = $this->sales()->get()->sum(function ($sale) {
-            return min($sale->total, $sale->payments()->sum('amount') + $this->deposits()->sum('amount'));
-        });
-        return $deposits - $salesPaid;
+        $totalPaid = $this->salePayments()->sum('amount');
+        return $deposits - $totalPaid;
     }
 }
