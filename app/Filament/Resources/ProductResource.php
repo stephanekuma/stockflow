@@ -43,18 +43,103 @@ class ProductResource extends Resource
     public static function form(Form $form): Form
     {
         return $form
-            ->schema(
-                self::getFormSchema(),
-            );
+            ->schema([
+                Forms\Components\Section::make()
+                    ->heading(__('Product Information'))
+                    ->collapsible()
+                    ->schema([
+                        Forms\Components\Select::make('category_id')
+                            ->label(__('Category'))
+                            ->native(false)
+                            ->preload()
+                            ->searchable()
+                            ->relationship(
+                                'category',
+                                'name',
+                                fn($query) => $query->where('store_id', Filament::getTenant()->id)
+                            )
+                            ->required()
+                            ->createOptionForm(fn() => array_merge(
+                                CategoryResource::getFormSchema(),
+                                [
+                                    Forms\Components\Hidden::make('store_id')
+                                        ->default(Filament::getTenant()->id),
+                                ]
+                            ))
+                            ->createOptionModalHeading(__('Create New Category')),
+                        Forms\Components\Select::make('brand_id')
+                            ->label(__('Brand'))
+                            ->native(false)
+                            ->preload()
+                            ->searchable()
+                            ->relationship(
+                                'brand',
+                                'name',
+                                fn($query) => $query->where('store_id', Filament::getTenant()->id)
+                            )
+                            ->required()
+                            ->createOptionForm(fn() => array_merge(
+                                BrandResource::getFormSchema(),
+                                [
+                                    Forms\Components\Hidden::make('store_id')
+                                        ->default(Filament::getTenant()->id),
+                                ]
+                            ))
+                            ->createOptionModalHeading(__('Create New Brand')),
+                        Forms\Components\TextInput::make('name')
+                            ->label(__('Name'))
+                            ->required()
+                            ->maxLength(255),
+                        Forms\Components\TextInput::make('sku')
+                            ->nullable()
+                            ->unique(ignoreRecord: true)
+                            ->label('SKU')
+                            ->maxLength(255),
+                        Forms\Components\Textarea::make('description')
+                            ->label(__('Description'))
+                            ->maxLength(255),
+                        Forms\Components\FileUpload::make('image')
+                            ->image(),
+                        Forms\Components\KeyValue::make('data')
+                            ->label(__('Extra Details'))
+                            ->columnSpanFull(),
+                    ])->columns(2),
+                Forms\Components\Section::make('Informations de Péremption')
+                    ->heading('Gestion des Produits Périssables')
+                    ->collapsible()
+                    ->collapsed()
+                    ->schema([
+                        Forms\Components\Toggle::make('is_perishable')
+                            ->label('Produit périssable')
+                            ->helperText('Cochez cette case si le produit a une date de péremption')
+                            ->reactive(),
+                        Forms\Components\DatePicker::make('expiry_date')
+                            ->label('Date d\'expiration')
+                            ->visible(fn($get) => $get('is_perishable'))
+                            ->required(fn($get) => $get('is_perishable'))
+                            ->minDate(now())
+                            ->helperText('Date à laquelle le produit expire'),
+                        Forms\Components\TextInput::make('expiry_alert_days')
+                            ->label('Jours d\'alerte')
+                            ->numeric()
+                            ->default(30)
+                            ->minValue(1)
+                            ->maxValue(365)
+                            ->visible(fn($get) => $get('is_perishable'))
+                            ->helperText('Nombre de jours avant expiration pour déclencher l\'alerte'),
+                        Forms\Components\Textarea::make('expiry_notes')
+                            ->label('Notes de péremption')
+                            ->visible(fn($get) => $get('is_perishable'))
+                            ->helperText('Informations supplémentaires sur la gestion de la péremption')
+                            ->columnSpanFull(),
+                    ])->columns(2),
+            ]);
     }
 
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                // Tables\Columns\TextColumn::make('store.name')
-                //     ->numeric()
-                //     ->sortable(),
                 Tables\Columns\TextColumn::make('name')
                     ->label(__('Name'))
                     ->sortable()
@@ -76,6 +161,33 @@ class ProductResource extends Resource
                     ->label(__('Description'))
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\IconColumn::make('is_perishable')
+                    ->label('Périssable')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-clock')
+                    ->falseIcon('heroicon-o-x-mark')
+                    ->trueColor('warning')
+                    ->falseColor('gray'),
+                Tables\Columns\TextColumn::make('expiry_date')
+                    ->label('Date d\'expiration')
+                    ->date()
+                    ->sortable()
+                    ->toggleable()
+                    ->color(fn($record) => $record->isExpired() ? 'danger' : ($record->isExpiringSoon() ? 'warning' : 'success')),
+                Tables\Columns\TextColumn::make('expiry_status')
+                    ->label('Statut')
+                    ->badge()
+                    ->color(fn(string $state): string => match ($state) {
+                        'expired' => 'danger',
+                        'warning' => 'warning',
+                        'good' => 'success',
+                    })
+                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                        'expired' => 'Expiré',
+                        'warning' => 'Attention',
+                        'good' => 'Bon',
+                    })
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('units')
                     ->label(__('Units'))
                     ->formatStateUsing(fn($record) => $record->units->map(fn($u) => $u->unit->name . ' (' . $u->quantity . ')')->join(', '))
@@ -92,7 +204,18 @@ class ProductResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                Tables\Filters\SelectFilter::make('expiry_status')
+                    ->label('Statut de péremption')
+                    ->options([
+                        'good' => 'Bon',
+                        'warning' => 'Attention',
+                        'expired' => 'Expiré',
+                    ]),
+                Tables\Filters\TernaryFilter::make('is_perishable')
+                    ->label('Produits périssables')
+                    ->placeholder('Tous les produits')
+                    ->trueLabel('Périssables uniquement')
+                    ->falseLabel('Non périssables uniquement'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
@@ -119,75 +242,6 @@ class ProductResource extends Resource
             'index' => Pages\ListProducts::route('/'),
             'create' => Pages\CreateProduct::route('/create'),
             'edit' => Pages\EditProduct::route('/{record}/edit'),
-        ];
-    }
-
-    public static function getFormSchema(): array
-    {
-        return [
-            Forms\Components\Section::make()
-                ->heading(__('Product Information'))
-                ->collapsible()
-                ->schema([
-                    // Forms\Components\Select::make('store_id')
-                    //     ->relationship('store', 'name')
-                    //     ->required(),
-                    Forms\Components\Select::make('category_id')
-                        ->label(__('Category'))
-                        ->native(false)
-                        ->preload()
-                        ->searchable()
-                        ->relationship(
-                            'category',
-                            'name',
-                            fn($query) => $query->where('store_id', \Filament\Facades\Filament::getTenant()->id)
-                        )
-                        ->required()
-                        ->createOptionForm(fn() => array_merge(
-                            CategoryResource::getFormSchema(),
-                            [
-                                Forms\Components\Hidden::make('store_id')
-                                    ->default(Filament::getTenant()->id),
-                            ]
-                        ))
-                        ->createOptionModalHeading(__('Create New Category')),
-                    Forms\Components\Select::make('brand_id')
-                        ->label(__('Brand'))
-                        ->native(false)
-                        ->preload()
-                        ->searchable()
-                        ->relationship(
-                            'brand',
-                            'name',
-                            fn($query) => $query->where('store_id', \Filament\Facades\Filament::getTenant()->id)
-                        )
-                        ->required()
-                        ->createOptionForm(fn() => array_merge(
-                            BrandResource::getFormSchema(),
-                            [
-                                Forms\Components\Hidden::make('store_id')
-                                    ->default(Filament::getTenant()->id),
-                            ]
-                        ))
-                        ->createOptionModalHeading(__('Create New Brand')),
-                    Forms\Components\TextInput::make('name')
-                        ->label(__('Name'))
-                        ->required()
-                        ->maxLength(255),
-                    Forms\Components\TextInput::make('sku')
-                        ->nullable()
-                        ->unique(ignoreRecord: true)
-                        ->label('SKU')
-                        ->maxLength(255),
-                    Forms\Components\Textarea::make('description')
-                        ->label(__('Description'))
-                        ->maxLength(255),
-                    Forms\Components\FileUpload::make('image')
-                        ->image(),
-                    Forms\Components\KeyValue::make('data')
-                        ->label(__('Extra Details'))
-                        ->columnSpanFull(),
-                ])->columns(2),
         ];
     }
 
