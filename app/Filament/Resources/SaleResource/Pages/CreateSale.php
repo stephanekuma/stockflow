@@ -63,8 +63,9 @@ class CreateSale extends CreateRecord
                     $productData = [
                         'quantity' => $soldProduct->quantity,
                         'price' => $soldProduct->price,
-                        'discount' => $soldProduct->discount,
+                        'discount' => $soldProduct->discount ?? 0,
                         'total' => $soldProduct->total,
+                        'discount_type' => 'amount', // Valeur par défaut
                     ];
 
                     if ($soldProduct->pack_id) {
@@ -73,8 +74,12 @@ class CreateSale extends CreateRecord
                     } else {
                         $productData['type'] = 'product';
                         $productData['product_unit_id'] = $soldProduct->product_unit_id;
-                        $productData['product_id'] = $soldProduct->productUnit?->product_id;
-                        $productData['unit_id'] = $soldProduct->productUnit?->unit_id;
+
+                        // Récupérer product_id et unit_id depuis le ProductUnit
+                        if ($soldProduct->productUnit) {
+                            $productData['product_id'] = $soldProduct->productUnit->product_id;
+                            $productData['unit_id'] = $soldProduct->productUnit->unit_id;
+                        }
                     }
 
                     $soldProducts[] = $productData;
@@ -88,9 +93,12 @@ class CreateSale extends CreateRecord
                 // Supprimer la vente en attente
                 $sale->delete();
 
+                // Forcer à nouveau le remplissage du formulaire après la suppression
+                $this->form->fill($this->data);
+
                 Notification::make()
                     ->title('Vente reprise')
-                    ->body('La vente en attente a été reprise avec succès.')
+                    ->body('La vente en attente a été reprise avec succès. Produits: ' . count($soldProducts))
                     ->success()
                     ->send();
             }
@@ -99,6 +107,11 @@ class CreateSale extends CreateRecord
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
+        // Si on a des données de reprise dans $this->data, les utiliser
+        if (!empty($this->data)) {
+            $data = array_merge($data, $this->data);
+        }
+
         return $data;
     }
 
@@ -109,6 +122,11 @@ class CreateSale extends CreateRecord
 
         // Fusionner les données du formulaire avec les données passées
         $data = array_merge($formData, $data);
+
+        // Si on a des données de reprise dans $this->data, les utiliser aussi
+        if (!empty($this->data)) {
+            $data = array_merge($this->data, $data);
+        }
 
         // S'assurer que les valeurs par défaut sont définies
         $data['store_id'] = Filament::getTenant()->id;
@@ -352,24 +370,52 @@ class CreateSale extends CreateRecord
                         $formData['invoice_number'] = Sale::generateInvoiceNumber();
                     }
 
+                    if (empty($formData['sold_at'])) {
+                        $formData['sold_at'] = now();
+                    }
+
                     // Créer la vente en attente
                     $sale = Sale::create($formData);
 
                     // Créer les produits vendus
                     if (isset($formData['soldProducts'])) {
                         foreach ($formData['soldProducts'] as $productData) {
-                            if ($productData['type'] === 'product' && isset($productData['product_unit_id'])) {
-                                SoldProduct::create([
-                                    'sale_id' => $sale->id,
-                                    'product_unit_id' => $productData['product_unit_id'],
-                                    'quantity' => $productData['quantity'],
-                                    'price' => $productData['price'],
-                                    'discount' => $productData['discount'] ?? 0,
-                                    'total' => $productData['total'],
-                                ]);
+                            if ($productData['type'] === 'product') {
+                                // Nouveau système : product_id + unit_id
+                                if (isset($productData['product_id']) && isset($productData['unit_id'])) {
+                                    $productUnit = ProductUnit::where('product_id', $productData['product_id'])
+                                        ->where('unit_id', $productData['unit_id'])
+                                        ->where('store_id', $sale->store_id)
+                                        ->first();
+
+                                    if ($productUnit) {
+                                        SoldProduct::create([
+                                            'sale_id' => $sale->id,
+                                            'product_unit_id' => $productUnit->id,
+                                            'pack_id' => null,
+                                            'quantity' => $productData['quantity'],
+                                            'price' => $productData['price'],
+                                            'discount' => $productData['discount'] ?? 0,
+                                            'total' => $productData['total'],
+                                        ]);
+                                    }
+                                }
+                                // Ancien système : product_unit_id (pour compatibilité)
+                                elseif (isset($productData['product_unit_id'])) {
+                                    SoldProduct::create([
+                                        'sale_id' => $sale->id,
+                                        'product_unit_id' => $productData['product_unit_id'],
+                                        'pack_id' => null,
+                                        'quantity' => $productData['quantity'],
+                                        'price' => $productData['price'],
+                                        'discount' => $productData['discount'] ?? 0,
+                                        'total' => $productData['total'],
+                                    ]);
+                                }
                             } elseif ($productData['type'] === 'pack' && isset($productData['pack_id'])) {
                                 SoldProduct::create([
                                     'sale_id' => $sale->id,
+                                    'product_unit_id' => null,
                                     'pack_id' => $productData['pack_id'],
                                     'quantity' => $productData['quantity'],
                                     'price' => $productData['price'],
@@ -385,7 +431,7 @@ class CreateSale extends CreateRecord
 
                     Notification::make()
                         ->title('Vente mise en attente')
-                        ->body('La vente a été sauvegardée en attente. Vous pourrez la reprendre plus tard.')
+                        ->body('La vente a été sauvegardée en attente avec tous les produits choisis. Vous pourrez la reprendre plus tard.')
                         ->success()
                         ->send();
 

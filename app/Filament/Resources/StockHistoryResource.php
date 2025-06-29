@@ -33,11 +33,12 @@ class StockHistoryResource extends Resource
     protected static ?string $model = StockHistory::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-clock';
-    protected static ?int $navigationSort = 99;
+    protected static ?int $navigationSort = 7;
 
     public static function getNavigationGroup(): string
     {
-        return __('Products Management');
+        $translation = __('Stock Management');
+        return is_string($translation) ? $translation : 'Stock Management';
     }
 
     public static function getModelLabel(): string

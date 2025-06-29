@@ -63,6 +63,8 @@ class EditSale extends EditRecord
     protected function afterSave(): void
     {
         $sale = $this->record;
+        $wasPending = $sale->getOriginal('status') === \App\Models\Sale::STATUS_PENDING;
+        $isNowFinalized = in_array($sale->status, [\App\Models\Sale::STATUS_COMPLETED, \App\Models\Sale::STATUS_IN_PROGRESS]);
 
         // Supprimer les anciens produits vendus
         $sale->soldProducts()->delete();
@@ -70,19 +72,63 @@ class EditSale extends EditRecord
         // Créer les nouveaux produits vendus
         if (isset($this->data['soldProducts'])) {
             foreach ($this->data['soldProducts'] as $productData) {
-                if ($productData['type'] === 'product' && isset($productData['product_unit_id'])) {
-                    $productUnit = ProductUnit::find($productData['product_unit_id']);
+                if ($productData['type'] === 'product') {
+                    // Nouveau système : product_id + unit_id
+                    if (isset($productData['product_id']) && isset($productData['unit_id'])) {
+                        $productUnit = ProductUnit::where('product_id', $productData['product_id'])
+                            ->where('unit_id', $productData['unit_id'])
+                            ->where('store_id', $sale->store_id)
+                            ->first();
 
-                    if ($productUnit) {
-                        SoldProduct::create([
-                            'sale_id' => $sale->id,
-                            'product_unit_id' => $productData['product_unit_id'],
-                            'pack_id' => null,
-                            'quantity' => $productData['quantity'],
-                            'price' => $productData['price'],
-                            'discount' => $productData['discount'] ?? 0,
-                            'total' => $productData['total'],
-                        ]);
+                        if ($productUnit) {
+                            SoldProduct::create([
+                                'sale_id' => $sale->id,
+                                'product_unit_id' => $productUnit->id,
+                                'pack_id' => null,
+                                'quantity' => $productData['quantity'],
+                                'price' => $productData['price'],
+                                'discount' => $productData['discount'] ?? 0,
+                                'total' => $productData['total'],
+                            ]);
+
+                            // Déduire le stock seulement si la vente passe d'en attente à finalisée
+                            if ($wasPending && $isNowFinalized) {
+                                $stockService = new \App\Services\StockMovementService();
+                                $stockService->removeStock(
+                                    $productUnit,
+                                    (int) $productData['quantity'],
+                                    'vente (reprise)',
+                                    'Vente reprise #' . $sale->invoice_number
+                                );
+                            }
+                        }
+                    }
+                    // Ancien système : product_unit_id (pour compatibilité)
+                    elseif (isset($productData['product_unit_id'])) {
+                        $productUnit = ProductUnit::find($productData['product_unit_id']);
+
+                        if ($productUnit) {
+                            SoldProduct::create([
+                                'sale_id' => $sale->id,
+                                'product_unit_id' => $productData['product_unit_id'],
+                                'pack_id' => null,
+                                'quantity' => $productData['quantity'],
+                                'price' => $productData['price'],
+                                'discount' => $productData['discount'] ?? 0,
+                                'total' => $productData['total'],
+                            ]);
+
+                            // Déduire le stock seulement si la vente passe d'en attente à finalisée
+                            if ($wasPending && $isNowFinalized) {
+                                $stockService = new \App\Services\StockMovementService();
+                                $stockService->removeStock(
+                                    $productUnit,
+                                    (int) $productData['quantity'],
+                                    'vente (reprise)',
+                                    'Vente reprise #' . $sale->invoice_number
+                                );
+                            }
+                        }
                     }
                 } elseif ($productData['type'] === 'pack' && isset($productData['pack_id'])) {
                     $pack = \App\Models\Pack::with('packProducts.productUnit')->find($productData['pack_id']);
@@ -97,6 +143,23 @@ class EditSale extends EditRecord
                             'discount' => $productData['discount'] ?? 0,
                             'total' => $productData['total'],
                         ]);
+
+                        // Déduire le stock seulement si la vente passe d'en attente à finalisée
+                        if ($wasPending && $isNowFinalized) {
+                            $stockService = new \App\Services\StockMovementService();
+                            foreach ($pack->packProducts as $packProduct) {
+                                $productUnit = $packProduct->productUnit;
+                                if ($productUnit) {
+                                    $quantityToDecrement = $packProduct->quantity * $productData['quantity'];
+                                    $stockService->removeStock(
+                                        $productUnit,
+                                        (int) $quantityToDecrement,
+                                        'vente (pack reprise)',
+                                        'Vente de pack reprise #' . $sale->invoice_number
+                                    );
+                                }
+                            }
+                        }
                     }
                 }
             }
