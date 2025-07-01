@@ -219,4 +219,9 @@ class Store extends Model
     {
         return $this->hasMany(\App\Models\ExpenseCategory::class);
     }
+
+    public function expenses()
+    {
+        return $this->hasMany(\App\Models\Expense::class);
+    }
 }

@@ -8,6 +8,7 @@ use Filament\Tables;
 use Filament\Forms\Form;
 use Filament\Tables\Table;
 use Filament\Facades\Filament;
+use Illuminate\Support\Facades\Auth;
 
 class ProductUnitsRelationManager extends RelationManager
 {
@@ -48,6 +49,30 @@ class ProductUnitsRelationManager extends RelationManager
                 ->label(__('Price'))
                 ->numeric()
                 ->required(),
+            Forms\Components\Select::make('provider_id')
+                ->label(__('Provider'))
+                ->options(fn() => \App\Models\Provider::query()
+                    ->when(Filament::getTenant(), fn($query) => $query->where('store_id', Filament::getTenant()?->getKey()))
+                    ->pluck('name', 'id')->toArray())
+                ->searchable()
+                ->preload()
+                ->nullable(),
+            Forms\Components\Select::make('type')
+                ->label(__('Stock movement type'))
+                ->native(false)
+                ->options([
+                    'purchase' => __('Purchase'),
+                    'inventory' => __('Inventory'),
+                    'adjustment' => __('Adjustment'),
+                ])
+                ->required(),
+            Forms\Components\DatePicker::make('movement_date')
+                ->label(__('Movement date'))
+                ->default(now())
+                ->required(),
+            Forms\Components\Textarea::make('note')
+                ->label(__('Note'))
+                ->nullable(),
 
             // Section pour les conversions personnalisées
             Forms\Components\Section::make(__('Custom Unit Conversion'))
@@ -101,5 +126,38 @@ class ProductUnitsRelationManager extends RelationManager
             Tables\Actions\EditAction::make(),
             Tables\Actions\DeleteAction::make(),
         ]);
+    }
+
+    public static function afterCreate($record, $data): void
+    {
+        // Création du mouvement de stock lors de la création d'une unité
+        \App\Models\StockHistory::create([
+            'product_unit_id' => $record->id,
+            'quantity_change' => $data['quantity'] ?? 0,
+            'type' => $data['type'] ?? 'inventory',
+            'provider_id' => $data['provider_id'] ?? null,
+            'date' => $data['movement_date'] ?? now(),
+            'note' => $data['note'] ?? null,
+            'user_id' => Auth::id(),
+        ]);
+    }
+
+    public static function afterEdit($record, $data): void
+    {
+        // Calcul de la différence de quantité
+        $oldQuantity = $record->getOriginal('quantity');
+        $newQuantity = $data['quantity'] ?? $record->quantity;
+        $diff = $newQuantity - $oldQuantity;
+        if ($diff != 0) {
+            \App\Models\StockHistory::create([
+                'product_unit_id' => $record->id,
+                'quantity_change' => $diff,
+                'type' => $data['type'] ?? 'adjustment',
+                'provider_id' => $data['provider_id'] ?? null,
+                'date' => $data['movement_date'] ?? now(),
+                'note' => $data['note'] ?? null,
+                'user_id' => Auth::id(),
+            ]);
+        }
     }
 }
