@@ -19,9 +19,17 @@ class ReportPage extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
     protected static string $view = 'filament.pages.report-page';
-    protected static ?string $navigationGroup = 'Rapports';
-    protected static ?string $title = 'Rapports';
     protected static ?int $navigationSort = 999;
+
+    public static function getNavigationGroup(): string
+    {
+        return __('Reports');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('Reports');
+    }
 
     public $filters = [
         'date_from' => null,

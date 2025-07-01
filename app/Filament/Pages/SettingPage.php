@@ -32,22 +32,22 @@ class SettingPage extends Page implements HasForms
 
     public static function getNavigationGroup(): ?string
     {
-        return __('Settings');
+        return __('Store Settings');
     }
 
     public static function getNavigationLabel(): string
     {
-        return __('Settings');
+        return __('Manage Settings');
     }
 
     public static function getSlug(): string
     {
-        return __('settings');
+        return __('manage-settings');
     }
 
     public function getTitle(): string | Htmlable
     {
-        return __('Store Settings');
+        return __('Manage Settings');
     }
 
     public function mount(): void

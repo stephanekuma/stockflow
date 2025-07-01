@@ -204,4 +204,19 @@ class Store extends Model
     {
         return $this->hasMany(SalePayment::class);
     }
+
+    /**
+     * Get all of the proformaInvoices for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function proformaInvoices(): HasMany
+    {
+        return $this->hasMany(ProformaInvoice::class);
+    }
+
+    public function expenseCategories()
+    {
+        return $this->hasMany(\App\Models\ExpenseCategory::class);
+    }
 }

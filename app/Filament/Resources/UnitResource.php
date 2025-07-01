@@ -117,40 +117,44 @@ class UnitResource extends Resource
     public static function getFormSchema(): array
     {
         return [
-            Forms\Components\TextInput::make('name')
-                ->label(__('Name'))
-                ->required()
-                ->maxLength(255)
-                ->helperText(__('Kilograms, Gallons, Liters, etc')),
-            Forms\Components\TextInput::make('key')
-                ->label(__('Key'))
-                ->required()
-                ->maxLength(255)
-                ->helperText(__('Units in short form kg, gal, l, etc')),
-            Forms\Components\Toggle::make('is_base_unit')
-                ->label(__('Is Base Unit'))
-                ->helperText(__('Check if this is a base unit (e.g., piece, gram, milliliter)'))
-                ->reactive(),
-            Forms\Components\Select::make('base_unit_id')
-                ->label(__('Base Unit'))
-                ->relationship('baseUnit', 'name')
-                ->searchable()
-                ->preload()
-                ->visible(fn(Forms\Get $get) => !$get('is_base_unit'))
-                ->required(fn(Forms\Get $get) => !$get('is_base_unit'))
-                ->helperText(__('Select the base unit for conversion (e.g., if this is "Carton", select "Piece" as base)')),
-            Forms\Components\TextInput::make('conversion_factor')
-                ->label(__('Conversion Factor'))
-                ->numeric()
-                ->step(0.0001)
-                ->minValue(0.0001)
-                ->visible(fn(Forms\Get $get) => !$get('is_base_unit'))
-                ->required(fn(Forms\Get $get) => !$get('is_base_unit'))
-                ->helperText(__('How many base units equal one of this unit? (e.g., 20 pieces = 1 carton)'))
-                ->default(1),
-            Forms\Components\KeyValue::make('data')
-                ->label(__('Extra Details'))
-                ->columnSpanFull(),
+            Forms\Components\Section::make()
+                ->schema([
+                    Forms\Components\TextInput::make('name')
+                        ->label(__('Name'))
+                        ->required()
+                        ->maxLength(255)
+                        ->helperText(__('Kilograms, Gallons, Liters, etc')),
+                    Forms\Components\TextInput::make('key')
+                        ->label(__('Key'))
+                        ->required()
+                        ->maxLength(255)
+                        ->helperText(__('Units in short form kg, gal, l, etc')),
+                    Forms\Components\KeyValue::make('data')
+                        ->label(__('Extra Details'))
+                        ->columnSpanFull(),
+
+                    Forms\Components\Toggle::make('is_base_unit')
+                        ->label(__('Is Base Unit'))
+                        ->helperText(__('Check if this is a base unit (e.g., piece, gram, milliliter)'))
+                        ->reactive(),
+                    Forms\Components\Select::make('base_unit_id')
+                        ->label(__('Base Unit'))
+                        ->relationship('baseUnit', 'name')
+                        ->searchable()
+                        ->preload()
+                        ->visible(fn(Forms\Get $get) => !$get('is_base_unit'))
+                        ->required(fn(Forms\Get $get) => !$get('is_base_unit'))
+                        ->helperText(__('Select the base unit for conversion (e.g., if this is "Carton", select "Piece" as base)')),
+                    Forms\Components\TextInput::make('conversion_factor')
+                        ->label(__('Conversion Factor'))
+                        ->numeric()
+                        ->step(1)
+                        // ->minValue(0.0001)
+                        ->visible(fn(Forms\Get $get) => !$get('is_base_unit'))
+                        ->required(fn(Forms\Get $get) => !$get('is_base_unit'))
+                        ->helperText(__('How many base units equal one of this unit? (e.g., 20 pieces = 1 carton)'))
+                        ->default(1),
+                ])->columns(2),
         ];
     }
 }

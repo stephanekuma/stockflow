@@ -91,7 +91,13 @@ class SaleResource extends Resource
                                     ->native(false)
                                     ->preload()
                                     ->searchable()
-                                    ->relationship('customer', 'name')
+                                    // ->relationship('customer', 'name')
+                                    ->options(fn() => Customer::query()
+                                        ->where('store_id', Filament::getTenant()->id)
+                                        ->get()
+                                        ->mapWithKeys(function ($customer) {
+                                            return [$customer->id => $customer->name];
+                                        }))
                                     ->required()
                                     ->createOptionForm(fn() => array_merge(
                                         CustomerResource::getFormSchema(),
@@ -213,7 +219,7 @@ class SaleResource extends Resource
 
                                         return $productUnits->mapWithKeys(function ($productUnit) {
                                             $stockInfo = $productUnit->quantity > 0 ? "Stock: {$productUnit->quantity}" : "Rupture";
-                                            $label = "{$productUnit->unit->name} ({$productUnit->unit->key}) - {$productUnit->price} XOF - {$stockInfo}";
+                                            $label = "{$productUnit->unit->name} ({$productUnit->unit->key}) - {$stockInfo}";
                                             return [$productUnit->unit->id => $label];
                                         });
                                     })
@@ -681,6 +687,48 @@ class SaleResource extends Resource
                     ->modalHeading(__('Reprendre la vente'))
                     ->modalDescription(__('Cette vente sera remise en cours.'))
                     ->modalSubmitActionLabel(__('Reprendre')),
+                Tables\Actions\Action::make('create_proforma')
+                    ->label(__('Créer Proforma'))
+                    ->icon('heroicon-o-document-text')
+                    ->color('info')
+                    ->action(function ($record) {
+                        // Créer une facture proforma basée sur cette vente
+                        $proforma = \App\Models\ProformaInvoice::create([
+                            'store_id' => $record->store_id,
+                            'customer_id' => $record->customer_id,
+                            'invoice_number' => \App\Models\ProformaInvoice::generateInvoiceNumber(),
+                            'issued_at' => now(),
+                            'valid_until' => now()->addDays(30), // Valide 30 jours
+                            'subtotal' => $record->subtotal,
+                            'total' => $record->total,
+                            'discount' => $record->discount,
+                            'notes' => "Créée à partir de la vente {$record->invoice_number}",
+                            'status' => \App\Models\ProformaInvoice::STATUS_DRAFT,
+                        ]);
+
+                        // Copier les produits vendus vers les éléments de la proforma
+                        foreach ($record->soldProducts as $soldProduct) {
+                            \App\Models\ProformaInvoiceItem::create([
+                                'proforma_invoice_id' => $proforma->id,
+                                'product_unit_id' => $soldProduct->product_unit_id,
+                                'pack_id' => $soldProduct->pack_id,
+                                'quantity' => $soldProduct->quantity,
+                                'price' => $soldProduct->price,
+                                'discount' => $soldProduct->discount,
+                                'total' => $soldProduct->total,
+                            ]);
+                        }
+
+                        \Filament\Notifications\Notification::make()
+                            ->title(__('Facture proforma créée'))
+                            ->body(__('La facture proforma') . ' ' . $proforma->invoice_number . ' ' . __('a été créée avec succès.'))
+                            ->success()
+                            ->send();
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading(__('Créer une facture proforma'))
+                    ->modalDescription(__('Une facture proforma sera créée basée sur cette vente. Voulez-vous continuer ?'))
+                    ->modalSubmitActionLabel(__('Créer')),
                 Tables\Actions\Action::make('print')
                     ->label(__('Print'))
                     ->icon('heroicon-o-printer')

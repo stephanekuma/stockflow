@@ -1,5 +1,17 @@
 <x-filament-panels::page>
 
+    <!-- Action Buttons -->
+    <div class="mb-6 flex gap-3">
+        <x-filament::button icon="heroicon-m-arrow-left"
+            href="{{ route('filament.admin.resources.purchases.edit', $purchase) }}" color="gray">
+            {{ __('Retour') }}
+        </x-filament::button>
+
+        <x-filament::button icon="heroicon-m-printer" wire:click="print" color="primary">
+            {{ __('Imprimer') }}
+        </x-filament::button>
+    </div>
+
     <head>
         <title>Purchase From {{ $purchase->provider?->name }}</title>
     </head>

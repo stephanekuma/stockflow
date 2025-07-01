@@ -73,6 +73,14 @@ class Customer extends Model
     }
 
     /**
+     * Get all debts for the customer
+     */
+    public function debts()
+    {
+        return $this->hasMany(\App\Models\CustomerDebt::class);
+    }
+
+    /**
      * Solde disponible du client (dépôts - paiements de ventes)
      */
     public function getBalanceAttribute()
@@ -80,5 +88,13 @@ class Customer extends Model
         $deposits = $this->deposits()->sum('amount');
         $totalPaid = $this->salePayments()->sum('amount');
         return $deposits - $totalPaid;
+    }
+
+    /**
+     * Montant total dû par le client
+     */
+    public function getTotalDueAttribute()
+    {
+        return $this->debts()->sum('amount') - $this->debts()->sum('paid');
     }
 }

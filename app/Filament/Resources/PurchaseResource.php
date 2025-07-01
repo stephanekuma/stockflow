@@ -2,22 +2,24 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\PurchaseResource\Pages;
-use App\Filament\Resources\PurchaseResource\RelationManagers;
-use App\Models\ProductUnit;
-use App\Models\Purchase;
-use App\Models\StockHistory;
-use Filament\Facades\Filament;
 use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Tables;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
-use Filament\Resources\Resource;
-use Filament\Tables;
+use App\Models\Purchase;
+use Filament\Forms\Form;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
+use App\Models\ProductUnit;
+use App\Models\ProviderDebt;
+use App\Models\StockHistory;
+use Filament\Facades\Filament;
+use App\Models\ProviderPayment;
+use Filament\Resources\Resource;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Database\Eloquent\Builder;
+use App\Filament\Resources\PurchaseResource\Pages;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use App\Filament\Resources\PurchaseResource\RelationManagers;
 
 class PurchaseResource extends Resource
 {
@@ -288,6 +290,27 @@ class PurchaseResource extends Resource
                                     ->disabled()
                                     ->dehydrated()
                                     ->reactive(),
+                                Forms\Components\Select::make('payment_mode')
+                                    ->label(__('Payment Mode'))
+                                    ->native(false)
+                                    ->options([
+                                        'cash' => __('Cash'),
+                                        'credit' => __('Credit'),
+                                        'partial' => __('Partial'),
+                                    ])
+                                    ->default('cash')
+                                    ->required()
+                                    ->reactive(),
+                                Forms\Components\TextInput::make('amount_paid')
+                                    ->label(__('Amount Paid'))
+                                    ->numeric()
+                                    ->prefix('XOF')
+                                    ->default(0)
+                                    ->minValue(0)
+                                    ->maxValue(fn(Get $get) => $get('total') ?? 0)
+                                    ->visible(fn(Get $get) => $get('payment_mode') !== 'credit')
+                                    ->required(fn(Get $get) => $get('payment_mode') !== 'credit')
+                                    ->helperText('Laisser à 0 pour un achat à crédit'),
                             ]),
                         Forms\Components\Textarea::make('notes')
                             ->label(__('Notes'))
@@ -503,7 +526,7 @@ class PurchaseResource extends Resource
     public static function afterSave(array $data, $record): void
     {
         // Log the saved record for verification
-        if ($record instanceof Purchase) {
+        if ($record instanceof \App\Models\Purchase) {
             \Illuminate\Support\Facades\Log::info('Purchase afterSave - Record saved', [
                 'purchase_id' => $record->id,
                 'subtotal' => $record->subtotal,
@@ -514,10 +537,10 @@ class PurchaseResource extends Resource
         }
 
         // Update product unit quantities after purchase
-        if ($record instanceof Purchase && isset($data['purchasedProducts'])) {
+        if ($record instanceof \App\Models\Purchase && isset($data['purchasedProducts'])) {
             foreach ($data['purchasedProducts'] as $purchasedProduct) {
                 if (isset($purchasedProduct['product_unit_id']) && isset($purchasedProduct['quantity'])) {
-                    $productUnit = ProductUnit::find($purchasedProduct['product_unit_id']);
+                    $productUnit = \App\Models\ProductUnit::find($purchasedProduct['product_unit_id']);
                     if ($productUnit) {
                         $before = $productUnit->quantity;
                         $newQuantity = $productUnit->quantity + (int) $purchasedProduct['quantity'];
@@ -525,9 +548,9 @@ class PurchaseResource extends Resource
                         $after = $newQuantity;
 
                         // Historique de stock (achat)
-                        StockHistory::create([
+                        \App\Models\StockHistory::create([
                             'product_unit_id' => $productUnit->id,
-                            'user_id' => Auth::id() ?? null,
+                            'user_id' => \Illuminate\Support\Facades\Auth::id() ?? null,
                             'type' => 'achat',
                             'quantity_before' => $before,
                             'quantity_after' => $after,
@@ -537,6 +560,45 @@ class PurchaseResource extends Resource
                     }
                 }
             }
+        }
+
+        // --- Gestion automatique de la dette fournisseur ---
+        $providerId = $data['provider_id'] ?? $record->provider_id;
+        $total = $data['total'] ?? $record->total;
+        $amountPaid = $data['amount_paid'] ?? 0;
+        $paymentMode = $data['payment_mode'] ?? 'cash';
+        $dueDate = now()->addDays(30); // Par défaut, 30 jours pour régler la dette
+
+        if ($paymentMode === 'credit' || ($paymentMode === 'partial' && $amountPaid < $total)) {
+            $debtAmount = $total;
+            $paid = ($paymentMode === 'partial') ? $amountPaid : 0;
+            $status = $paid == 0 ? 'unpaid' : ($paid < $debtAmount ? 'partial' : 'paid');
+
+            $debt = ProviderDebt::create([
+                'provider_id' => $providerId,
+                'purchase_id' => $record->id,
+                'amount' => $debtAmount,
+                'paid' => $paid,
+                'due_date' => $dueDate,
+                'status' => $status,
+                'notes' => $data['notes'] ?? null,
+            ]);
+
+            if ($paid > 0) {
+                ProviderPayment::create([
+                    'store_id' => \Filament\Facades\Filament::getTenant()->id,
+                    'provider_id' => $providerId,
+                    'provider_debt_id' => $debt->id,
+                    'amount' => $paid,
+                    'payment_date' => now(),
+                    'method' => $paymentMode,
+                    'notes' => 'Acompte lors de la création de l\'achat',
+                ]);
+            }
+        } elseif ($paymentMode === 'cash' && $amountPaid >= $total) {
+            // Paiement total, pas de dette à créer
+        } elseif ($paymentMode === 'partial' && $amountPaid >= $total) {
+            // Paiement total, pas de dette à créer
         }
     }
 }

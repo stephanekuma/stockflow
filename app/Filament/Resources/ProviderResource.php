@@ -37,7 +37,7 @@ class ProviderResource extends CustomerResource
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\ProviderDebtsRelationManager::class,
         ];
     }
 

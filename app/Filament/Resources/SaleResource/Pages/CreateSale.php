@@ -349,6 +349,20 @@ class CreateSale extends CreateRecord
                 'type' => $type,
             ]);
         }
+
+        // Créer une dette client si nécessaire
+        if ($customer && $sale->amount_due > 0) {
+            \App\Models\CustomerDebt::create([
+                'store_id' => \Filament\Facades\Filament::getTenant()->id,
+                'customer_id' => $customer->id,
+                'sale_id' => $sale->id,
+                'amount' => $sale->total,
+                'paid' => $sale->total - $sale->amount_due,
+                'due_date' => now()->addDays(30), // Par défaut, 30 jours pour régler la dette
+                'status' => $sale->amount_due == $sale->total ? 'unpaid' : 'partial',
+                'notes' => 'Dette créée automatiquement lors de la vente #' . $sale->invoice_number,
+            ]);
+        }
     }
 
     protected function getHeaderActions(): array

@@ -69,6 +69,16 @@ class Unit extends Model
     }
 
     /**
+     * Get all product units for this unit.
+     *
+     * @return HasMany
+     */
+    public function productUnits(): HasMany
+    {
+        return $this->hasMany(ProductUnit::class);
+    }
+
+    /**
      * Convert quantity from this unit to base unit.
      *
      * @param float $quantity

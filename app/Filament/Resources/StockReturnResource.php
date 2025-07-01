@@ -505,7 +505,7 @@ class StockReturnResource extends Resource
         $price = (float) ($get('price') ?? 0);
         $condition = $get('condition') ?? ReturnedProduct::CONDITION_GOOD;
 
-        $refundPercentage = match($condition) {
+        $refundPercentage = match ($condition) {
             ReturnedProduct::CONDITION_GOOD => 1.0, // 100% remboursement
             ReturnedProduct::CONDITION_DAMAGED => 0.5, // 50% remboursement
             ReturnedProduct::CONDITION_EXPIRED => 0.0, // 0% remboursement

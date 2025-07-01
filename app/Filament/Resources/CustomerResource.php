@@ -102,6 +102,7 @@ class CustomerResource extends Resource
             //
             \App\Filament\Resources\CustomerResource\RelationManagers\DepositsRelationManager::class,
             \App\Filament\Resources\CustomerResource\RelationManagers\SalePaymentsRelationManager::class,
+            \App\Filament\Resources\CustomerResource\RelationManagers\CustomerDebtsRelationManager::class,
         ];
     }
 

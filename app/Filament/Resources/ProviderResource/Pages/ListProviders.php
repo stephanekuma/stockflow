@@ -5,6 +5,7 @@ namespace App\Filament\Resources\ProviderResource\Pages;
 use App\Filament\Resources\ProviderResource;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
+use App\Filament\Widgets\SupplierDebtsSummaryWidget;
 
 class ListProviders extends ListRecords
 {
@@ -14,6 +15,13 @@ class ListProviders extends ListRecords
     {
         return [
             Actions\CreateAction::make(),
+        ];
+    }
+
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            SupplierDebtsSummaryWidget::class,
         ];
     }
 }

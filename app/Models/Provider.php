@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Provider extends Model
 {
@@ -45,5 +46,55 @@ class Provider extends Model
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
+    }
+
+    /**
+     * Get the provider's debts.
+     *
+     * @return HasMany
+     */
+    public function debts(): HasMany
+    {
+        return $this->hasMany(ProviderDebt::class);
+    }
+
+    /**
+     * Get the provider's payments.
+     *
+     * @return HasMany
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(ProviderPayment::class);
+    }
+
+    /**
+     * Get total debt amount.
+     *
+     * @return float
+     */
+    public function getTotalDebtAttribute(): float
+    {
+        return $this->debts()->sum('amount');
+    }
+
+    /**
+     * Get total paid amount.
+     *
+     * @return float
+     */
+    public function getTotalPaidAttribute(): float
+    {
+        return $this->debts()->sum('paid');
+    }
+
+    /**
+     * Get remaining debt amount.
+     *
+     * @return float
+     */
+    public function getRemainingDebtAttribute(): float
+    {
+        return $this->total_debt - $this->total_paid;
     }
 }

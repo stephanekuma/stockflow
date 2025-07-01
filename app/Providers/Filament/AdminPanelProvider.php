@@ -2,26 +2,32 @@
 
 namespace App\Providers\Filament;
 
-use App\Filament\Pages\ProfilePage;
-use App\Filament\Pages\StockHistoryPage;
-use App\Models\Store;
-use Filament\Http\Middleware\Authenticate;
-use Filament\Http\Middleware\AuthenticateSession;
-use Filament\Http\Middleware\DisableBladeIconComponents;
-use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Navigation\NavigationGroup;
 use Filament\Pages;
 use Filament\Panel;
+use App\Models\Store;
+use Filament\Widgets;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Widgets;
-use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
-use Illuminate\Cookie\Middleware\EncryptCookies;
-use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
-use Illuminate\Routing\Middleware\SubstituteBindings;
-use Illuminate\Session\Middleware\StartSession;
-use Illuminate\View\Middleware\ShareErrorsFromSession;
+use App\Filament\Pages\ProfilePage;
+use App\Filament\Pages\StockHistoryPage;
+use Filament\Navigation\NavigationGroup;
+use Filament\Http\Middleware\Authenticate;
 use Jeffgreco13\FilamentBreezy\BreezyCore;
+use App\Filament\Widgets\ExpiryAlertsWidget;
+use App\Filament\Widgets\InventoryStatsWidget;
+use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use App\Filament\Widgets\StockManagementOverview;
+use Filament\Http\Middleware\AuthenticateSession;
+use App\Filament\Widgets\CustomerDebtsSummaryWidget;
+use App\Filament\Widgets\SupplierDebtsSummaryWidget;
+use Illuminate\Routing\Middleware\SubstituteBindings;
+use Boquizo\FilamentLogViewer\FilamentLogViewerPlugin;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Filament\Http\Middleware\DisableBladeIconComponents;
+use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -44,8 +50,13 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 Widgets\AccountWidget::class,
                 // Widgets\FilamentInfoWidget::class,
-                \App\Filament\Widgets\StockManagementOverview::class,
-                \App\Filament\Widgets\ExpiryAlertsWidget::class,
+                // StockManagementOverview::class,
+                // ExpiryAlertsWidget::class,
+                CustomerDebtsSummaryWidget::class,
+                SupplierDebtsSummaryWidget::class,
+                InventoryStatsWidget::class,
+                \App\Filament\Widgets\MonthlyExpensesWidget::class,
+                \App\Filament\Widgets\ExpensesByCategoryChart::class,
             ])
             ->middleware([
                 EncryptCookies::class,
@@ -65,16 +76,31 @@ class AdminPanelProvider extends PanelProvider
             ->databaseNotifications()
             ->navigationGroups([
                 NavigationGroup::make()
+                    ->label(__('Logs'))
+                    ->icon('heroicon-s-list-bullet'),
+                NavigationGroup::make()
                     ->label(__('Products Management'))
                     ->icon('heroicon-s-cube'),
+                NavigationGroup::make()
+                    ->label(__('Stock Management'))
+                    ->icon('heroicon-s-inbox-stack'),
+                NavigationGroup::make()
+                    ->label(__('Expense Management'))
+                    ->icon('heroicon-s-banknotes'),
+                NavigationGroup::make()
+                    ->label(__('Finances'))
+                    ->icon('heroicon-s-currency-dollar'),
                 NavigationGroup::make()
                     ->label(__('Transactions'))
                     ->icon('heroicon-s-shopping-cart'),
                 NavigationGroup::make()
+                    ->label(__('Reports'))
+                    ->icon('heroicon-s-chart-bar'),
+                NavigationGroup::make()
                     ->label(__('Business Entities'))
                     ->icon('heroicon-s-briefcase'),
                 NavigationGroup::make()
-                    ->label(__('Settings'))
+                    ->label(__('Store Settings'))
                     ->icon('heroicon-s-cog'),
             ])
             ->plugins([
@@ -82,12 +108,13 @@ class AdminPanelProvider extends PanelProvider
                     ->myProfile(
                         shouldRegisterUserMenu: true,
                         shouldRegisterNavigation: true,
-                        navigationGroup: __('Settings'),
+                        navigationGroup: __('Store Settings'),
                     )
                     ->enableTwoFactorAuthentication(
                         force: true,
                     )
                     ->customMyProfilePage(ProfilePage::class),
+                FilamentLogViewerPlugin::make(),
             ])
             ->sidebarCollapsibleOnDesktop()
             ->collapsedSidebarWidth('9rem');

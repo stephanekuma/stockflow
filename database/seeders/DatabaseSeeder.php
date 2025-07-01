@@ -18,7 +18,9 @@ class DatabaseSeeder extends Seeder
             StoreSeeder::class,
             SettingSeeder::class,
             // CustomerSeeder::class,
-            // ProviderSeeder::class
+            // ProviderSeeder::class,
+            UnitConversionSeeder::class,
+            ProformaInvoiceSeeder::class,
         ]);
     }
 }
