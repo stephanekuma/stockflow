@@ -90,6 +90,17 @@ class ExpenseCategoryResource extends Resource
                     Forms\Components\Textarea::make('description')
                         ->label(__('Description'))
                         ->nullable(),
+                    Forms\Components\Select::make('type')
+                        ->label(__('Type'))
+                        ->options([
+                            'general' => __('General'),
+                            'employee' => __('Employee Related'),
+                            'utility' => __('Utility'),
+                            'maintenance' => __('Maintenance'),
+                            'other' => __('Other'),
+                        ])
+                        ->default('general')
+                        ->required(),
                 ])
         ];
     }

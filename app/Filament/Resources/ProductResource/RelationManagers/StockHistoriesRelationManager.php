@@ -31,6 +31,10 @@ class StockHistoriesRelationManager extends RelationManager
                     'danger' => 'vente',
                     'warning' => 'correction',
                 ]),
+                TextColumn::make('provider.name')
+                    ->label('Provider')
+                    ->toggleable()
+                    ->searchable(),
                 TextColumn::make('note')->label('Note')->limit(30),
                 TextColumn::make('user.name')->label('Utilisateur'),
             ])

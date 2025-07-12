@@ -40,10 +40,10 @@ class SettingPage extends Page implements HasForms
         return __('Manage Settings');
     }
 
-    public static function getSlug(): string
-    {
-        return __('manage-settings');
-    }
+    // public static function getSlug(): string
+    // {
+    //     return __('manage-settings');
+    // }
 
     public function getTitle(): string | Htmlable
     {

@@ -215,13 +215,43 @@ class Store extends Model
         return $this->hasMany(ProformaInvoice::class);
     }
 
+    /**
+     * Get all of the expenseCategories for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
     public function expenseCategories()
     {
         return $this->hasMany(\App\Models\ExpenseCategory::class);
     }
 
+    /**
+     * Get all of the expenses for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
     public function expenses()
     {
         return $this->hasMany(\App\Models\Expense::class);
+    }
+
+    /**
+     * Get all of the employees for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function employees(): HasMany
+    {
+        return $this->hasMany(Employee::class);
+    }
+
+    /**
+     * Get all of the payrolls for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function payrolls(): HasMany
+    {
+        return $this->hasMany(Payroll::class);
     }
 }

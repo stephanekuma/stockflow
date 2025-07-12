@@ -11,6 +11,7 @@ class StockHistory extends Model
         'store_id',
         'product_unit_id',
         'user_id',
+        'provider_id',
         'type',
         'quantity_before',
         'quantity_after',
@@ -37,5 +38,10 @@ class StockHistory extends Model
     public function user()
     {
         return $this->belongsTo(\App\Models\User::class);
+    }
+
+    public function provider(): BelongsTo
+    {
+        return $this->belongsTo(Provider::class);
     }
 }
