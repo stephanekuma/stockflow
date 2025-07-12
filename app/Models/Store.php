@@ -254,4 +254,14 @@ class Store extends Model
     {
         return $this->hasMany(Payroll::class);
     }
+
+    /**
+     * Get all of the cashRegisters for the Store
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function cashRegisters(): HasMany
+    {
+        return $this->hasMany(CashRegister::class);
+    }
 }

@@ -16,6 +16,7 @@ use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Auth;
 use App\Services\UnitConversionService;
 use App\Services\StockMovementService;
+use App\Services\CashRegisterService;
 
 class CreateSale extends CreateRecord
 {
@@ -236,30 +237,10 @@ class CreateSale extends CreateRecord
                                 }
                             }
                         } catch (\Exception $e) {
-                            $productUnit = ProductUnit::where('product_id', $productData['product_id'])
-                                ->where('unit_id', $productData['unit_id'])
-                                ->where('store_id', $sale->store_id)
-                                ->first();
-                            if ($productUnit) {
-                                SoldProduct::create([
-                                    'sale_id' => $sale->id,
-                                    'product_unit_id' => $productUnit->id,
-                                    'quantity' => $productData['quantity'],
-                                    'price' => $productData['price'],
-                                    'discount' => $productData['discount'] ?? 0,
-                                    'total' => $productData['total'],
-                                    'data' => [
-                                        'error' => $e->getMessage(),
-                                        'conversion_failed' => true,
-                                    ],
-                                ]);
-                                $stockService->removeStock(
-                                    $productUnit,
-                                    (int) $productData['quantity'],
-                                    'vente',
-                                    'Vente #' . $sale->invoice_number . ' (conversion échouée)'
-                                );
-                            }
+                            \Illuminate\Support\Facades\Log::error('Error in unit conversion', [
+                                'error' => $e->getMessage(),
+                                'product_data' => $productData,
+                            ]);
                         }
                     }
                     // Ancien système : product_unit_id (pour compatibilité)
@@ -289,13 +270,12 @@ class CreateSale extends CreateRecord
                             }
                         }
                     }
-                } elseif ($productData['type'] === 'pack' && isset($productData['pack_id'])) {
-                    $pack = \App\Models\Pack::with('packProducts.productUnit')->find($productData['pack_id']);
-
+                } elseif ($productData['type'] === 'pack') {
+                    // Gestion des packs
+                    $pack = \App\Models\Pack::find($productData['pack_id']);
                     if ($pack) {
                         SoldProduct::create([
                             'sale_id' => $sale->id,
-                            'product_unit_id' => null,
                             'pack_id' => $productData['pack_id'],
                             'quantity' => $productData['quantity'],
                             'price' => $productData['price'],
@@ -303,22 +283,16 @@ class CreateSale extends CreateRecord
                             'total' => $productData['total'],
                         ]);
 
-                        // Mettre à jour le stock pour chaque composant du pack
+                        // Décrémenter le stock des produits du pack
                         foreach ($pack->packProducts as $packProduct) {
                             $productUnit = $packProduct->productUnit;
                             if ($productUnit) {
-                                $quantityToDecrement = $packProduct->quantity * $productData['quantity'];
                                 $stockService->removeStock(
                                     $productUnit,
-                                    (int) $quantityToDecrement,
-                                    'vente (pack)',
-                                    'Vente de pack #' . $sale->invoice_number
+                                    (int) ($packProduct->quantity * $productData['quantity']),
+                                    'vente',
+                                    'Vente pack #' . $sale->invoice_number
                                 );
-
-                                // Vérifier le seuil de stock pour chaque unité du pack
-                                if ($productUnit->low_stock_threshold && $productUnit->quantity <= $productUnit->low_stock_threshold) {
-                                    $productUnit->product->notify(new \App\Notifications\LowStockNotification($productUnit));
-                                }
                             }
                         }
                     }
@@ -336,8 +310,7 @@ class CreateSale extends CreateRecord
             $note = $payment['note'] ?? null;
             if ($type === 'deposit' && $customer) {
                 // Déduire du solde client
-                $customer->balance -= $amount;
-                $customer->save();
+                $customer->update(['balance' => $customer->balance - $amount]);
             }
             \App\Models\SalePayment::create([
                 'store_id' => \Filament\Facades\Filament::getTenant()->id,
@@ -362,6 +335,32 @@ class CreateSale extends CreateRecord
                 'status' => $sale->amount_due == $sale->total ? 'unpaid' : 'partial',
                 'notes' => 'Dette créée automatiquement lors de la vente #' . $sale->invoice_number,
             ]);
+        }
+
+        // Enregistrer la transaction de caisse pour les paiements reçus
+        $totalPaid = array_sum(array_column($payments, 'amount'));
+        if ($totalPaid > 0) {
+            try {
+                CashRegisterService::recordTransaction(
+                    null, // storeId - will be auto-detected
+                    type: 'sale',
+                    amount: $totalPaid,
+                    referenceId: $sale->id,
+                    description: 'Vente #' . $sale->invoice_number
+                );
+
+                Notification::make()
+                    ->title('Vente enregistrée')
+                    ->body('La vente a été enregistrée et la transaction de caisse créée.')
+                    ->success()
+                    ->send();
+            } catch (\Exception $e) {
+                Notification::make()
+                    ->title('Erreur caisse')
+                    ->body($e->getMessage())
+                    ->danger()
+                    ->send();
+            }
         }
     }
 

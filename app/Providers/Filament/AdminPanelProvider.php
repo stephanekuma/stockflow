@@ -57,6 +57,7 @@ class AdminPanelProvider extends PanelProvider
                 InventoryStatsWidget::class,
                 \App\Filament\Widgets\MonthlyExpensesWidget::class,
                 \App\Filament\Widgets\ExpensesByCategoryChart::class,
+                \App\Filament\Widgets\RegisterShortcutWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,

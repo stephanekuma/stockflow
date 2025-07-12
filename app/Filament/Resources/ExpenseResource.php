@@ -7,6 +7,7 @@ use App\Filament\Resources\ExpenseResource\RelationManagers;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\User;
+use App\Services\CashRegisterService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -86,11 +87,19 @@ class ExpenseResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('date')->label(__('Date'))->date(),
-                Tables\Columns\TextColumn::make('amount')->label(__('Amount'))->money('XOF'),
-                Tables\Columns\TextColumn::make('category.name')->label(__('Category')),
-                Tables\Columns\TextColumn::make('user.name')->label(__('User')),
-                Tables\Columns\TextColumn::make('description')->label(__('Description'))->limit(30),
+                Tables\Columns\TextColumn::make('date')
+                    ->label(__('Date'))
+                    ->date(),
+                Tables\Columns\TextColumn::make('amount')
+                    ->label(__('Amount'))
+                    ->money('XOF'),
+                Tables\Columns\TextColumn::make('category.name')
+                    ->label(__('Category')),
+                Tables\Columns\TextColumn::make('user.name')
+                    ->label(__('User')),
+                Tables\Columns\TextColumn::make('description')
+                    ->label(__('Description'))
+                    ->limit(30),
             ])
             ->filters([
                 Tables\Filters\Filter::make('date')

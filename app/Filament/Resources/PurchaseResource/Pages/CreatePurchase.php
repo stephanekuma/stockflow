@@ -9,6 +9,8 @@ use Filament\Facades\Filament;
 use App\Models\ProductUnit;
 use App\Models\PurchasedProduct;
 use App\Services\StockMovementService;
+use App\Services\CashRegisterService;
+use Filament\Notifications\Notification;
 
 class CreatePurchase extends CreateRecord
 {
@@ -57,6 +59,32 @@ class CreatePurchase extends CreateRecord
                     'vat' => $productData['vat'],
                     'total' => $productData['total'],
                 ]);
+            }
+        }
+
+        // Enregistrer la transaction de caisse si un paiement est effectué
+        $amountPaid = $this->data['amount_paid'] ?? 0;
+        if ($amountPaid > 0) {
+            try {
+                CashRegisterService::recordTransaction(
+                    null, // storeId - will be auto-detected
+                    type: 'purchase',
+                    amount: -$amountPaid,
+                    referenceId: $purchase->id,
+                    description: 'Achat #' . $purchase->invoice_number
+                );
+
+                Notification::make()
+                    ->title('Achat enregistré')
+                    ->body('L\'achat a été enregistré et la transaction de caisse créée.')
+                    ->success()
+                    ->send();
+            } catch (\Exception $e) {
+                Notification::make()
+                    ->title('Erreur caisse')
+                    ->body($e->getMessage())
+                    ->danger()
+                    ->send();
             }
         }
 

@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
 use Filament\Facades\Filament;
+use App\Services\CashRegisterService;
+use Filament\Notifications\Notification;
 
 class CustomerDepositResource extends Resource
 {
@@ -50,7 +52,34 @@ class CustomerDepositResource extends Resource
     public static function mutateFormDataBeforeCreate(array $data): array
     {
         $data['user_id'] = Auth::id();
+        $data['store_id'] = Filament::getTenant()->id;
         return $data;
+    }
+
+    public static function afterCreate($record, $data): void
+    {
+        try {
+            CashRegisterService::recordTransaction(
+                null, // storeId - will be auto-detected
+                type: 'customer-deposit',
+                amount: $record->amount,
+                referenceId: $record->id,
+                description: $record->note ?? 'Dépôt client #' . $record->id
+            );
+
+            Notification::make()
+                ->title('Dépôt enregistré')
+                ->body('Le dépôt client a été enregistré et la transaction de caisse créée.')
+                ->success()
+                ->send();
+
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('Erreur caisse')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
     }
 
     public static function table(Table $table): Table

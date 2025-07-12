@@ -7,6 +7,8 @@ use Filament\Resources\Pages\CreateRecord;
 use App\Models\StockReturn;
 use App\Models\ReturnedProduct;
 use Filament\Facades\Filament;
+use App\Services\CashRegisterService;
+use Filament\Notifications\Notification;
 
 class CreateStockReturn extends CreateRecord
 {
@@ -44,6 +46,31 @@ class CreateStockReturn extends CreateRecord
         }
 
         $stockReturn->calculateTotalRefund();
+
+        // Enregistrer la transaction de caisse si il y a un remboursement
+        if ($stockReturn->total_refund > 0) {
+            try {
+                CashRegisterService::recordTransaction(
+                    null, // storeId - will be auto-detected
+                    type: 'return-as-deposit',
+                    amount: $stockReturn->total_refund,
+                    referenceId: $stockReturn->id,
+                    description: 'Retour client #' . $stockReturn->id
+                );
+
+                Notification::make()
+                    ->title('Retour enregistré')
+                    ->body('Le retour a été enregistré et la transaction de caisse créée.')
+                    ->success()
+                    ->send();
+            } catch (\Exception $e) {
+                Notification::make()
+                    ->title('Erreur caisse')
+                    ->body($e->getMessage())
+                    ->danger()
+                    ->send();
+            }
+        }
     }
 
     protected function getRedirectUrl(): string
